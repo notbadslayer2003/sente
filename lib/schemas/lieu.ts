@@ -1,0 +1,123 @@
+import { z } from "zod";
+
+export const TypeLieuSchema = z.enum(["peche", "chasse"]);
+export type TypeLieu = z.infer<typeof TypeLieuSchema>;
+
+export const TypeLieuLabel: Record<TypeLieu, string> = {
+    peche: "Pêche",
+    chasse: "Chasse",
+};
+
+export const EspeceSchema = z.enum([
+    "carpe",
+    "carnassier",
+    "salmonide",
+    "blanc",
+    "silure",
+    "esturgeon",
+]);
+export type Espece = z.infer<typeof EspeceSchema>;
+
+export const EspeceLabel: Record<Espece, string> = {
+    carpe: "Carpe",
+    carnassier: "Carnassier",
+    salmonide: "Salmonidé",
+    blanc: "Poisson blanc",
+    silure: "Silure",
+    esturgeon: "Esturgeon",
+};
+
+export const GibierSchema = z.enum([
+    "cerf",
+    "sanglier",
+    "chevreuil",
+    "faisan",
+    "perdrix",
+    "lievre",
+    "canard",
+    "becasse",
+]);
+export type Gibier = z.infer<typeof GibierSchema>;
+
+export const GibierLabel: Record<Gibier, string> = {
+    cerf: "Cerf",
+    sanglier: "Sanglier",
+    chevreuil: "Chevreuil",
+    faisan: "Faisan",
+    perdrix: "Perdrix",
+    lievre: "Lièvre",
+    canard: "Canard",
+    becasse: "Bécasse",
+};
+
+export const ProvinceSchema = z.enum([
+    "hainaut",
+    "liege",
+    "namur",
+    "luxembourg",
+    "brabant-wallon",
+]);
+export type Province = z.infer<typeof ProvinceSchema>;
+
+export const ProvinceLabel: Record<Province, string> = {
+    hainaut: "Hainaut",
+    liege: "Liège",
+    namur: "Namur",
+    luxembourg: "Luxembourg",
+    "brabant-wallon": "Brabant wallon",
+};
+
+export const ReglementSchema = z.object({
+    noKill: z.boolean(),
+    baitboatAutorise: z.boolean(),
+    nuitAutorisee: z.boolean(),
+    nbCannesMax: z.number().int().min(1).max(6),
+    permisRequis: z.boolean(),
+});
+export type Reglement = z.infer<typeof ReglementSchema>;
+
+export const TarifSchema = z.object({
+    jour: z.number().nonnegative(),
+    nuit: z.number().nonnegative().optional(),
+    forfait48h: z.number().nonnegative().optional(),
+    semaine: z.number().nonnegative().optional(),
+});
+export type Tarif = z.infer<typeof TarifSchema>;
+
+export const LieuSchema = z.object({
+    id: z.string().min(1), // TODO: passer en z.uuid() quand on branche Supabase
+    slug: z.string().min(1),
+    nom: z.string(),
+    description: z.string(),
+    type: TypeLieuSchema,
+    province: ProvinceSchema,
+    commune: z.string(),
+    superficieHa: z.number().positive(),
+    profondeurMaxM: z.number().positive().optional(),
+    especes: z.array(EspeceSchema).default([]),
+    gibier: z.array(GibierSchema).default([]),
+    reglement: ReglementSchema,
+    tarif: TarifSchema,
+    recordKg: z.number().positive().optional(),
+    postesCount: z.number().int().nonnegative(),
+    photos: z.array(z.string().url()).min(1),
+    coordonnees: z.object({ lat: z.number(), lng: z.number() }),
+    contact: z.object({
+        email: z.string().email().optional(),
+        telephone: z.string().optional(),
+        siteWeb: z.string().url().optional(),
+    }),
+    reservable: z.boolean(),
+    noteMoyenne: z.number().min(0).max(5).optional(),
+    nbAvis: z.number().int().nonnegative(),
+});
+export type Lieu = z.infer<typeof LieuSchema>;
+
+export const LieuxFilterSchema = z.object({
+    type: TypeLieuSchema.optional(),
+    espece: EspeceSchema.optional(),
+    gibier: GibierSchema.optional(),
+    province: ProvinceSchema.optional(),
+    reservableOnly: z.boolean().optional(),
+});
+export type LieuxFilter = z.infer<typeof LieuxFilterSchema>;

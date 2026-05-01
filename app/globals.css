@@ -1,26 +1,103 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.625rem;
+
+  /* Neutres chauds — base stone */
+  --background: oklch(0.985 0.002 75);
+  --foreground: oklch(0.205 0.003 50);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.205 0.003 50);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.205 0.003 50);
+
+  /* Vert forêt — primary */
+  --primary: oklch(0.36 0.045 155);
+  --primary-foreground: oklch(0.985 0.002 75);
+
+  /* Vert très pâle — secondary */
+  --secondary: oklch(0.94 0.012 155);
+  --secondary-foreground: oklch(0.36 0.045 155);
+
+  /* Muted */
+  --muted: oklch(0.96 0.003 75);
+  --muted-foreground: oklch(0.55 0.005 60);
+
+  /* Sable / ocre — accent CTA chaud */
+  --accent: oklch(0.7 0.075 60);
+  --accent-foreground: oklch(0.2 0.02 50);
+
+  /* Destructive */
+  --destructive: oklch(0.55 0.18 25);
+  --destructive-foreground: oklch(0.985 0.002 75);
+
+  --border: oklch(0.91 0.005 75);
+  --input: oklch(0.91 0.005 75);
+  --ring: oklch(0.36 0.045 155);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body), system-ui, sans-serif;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display), Georgia, serif;
+    font-feature-settings: "ss01", "ss03";
+    letter-spacing: -0.015em;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility font-display-soft {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
+}
+
+/* Empêche Leaflet de passer au-dessus du header */
+.leaflet-container,
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 1 !important;
+}
+
+.leaflet-tooltip {
+  z-index: 2 !important;
 }
