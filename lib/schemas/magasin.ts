@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ProvinceSchema, type Province } from "@/lib/schemas/lieu";
+import { ProvinceSchema, PaysSchema, type Province } from "@/lib/schemas/lieu";
 
 export const SpecialiteSchema = z.enum([
     "carpe",
@@ -7,7 +7,6 @@ export const SpecialiteSchema = z.enum([
     "mouche",
     "peche-blanc",
     "peche-mer",
-    "chasse",
     "general",
 ]);
 export type Specialite = z.infer<typeof SpecialiteSchema>;
@@ -18,21 +17,21 @@ export const SpecialiteLabel: Record<Specialite, string> = {
     mouche: "Mouche",
     "peche-blanc": "Pêche blanc",
     "peche-mer": "Pêche mer",
-    chasse: "Chasse",
     general: "Généraliste",
 };
 
 export const MagasinSchema = z.object({
-    id: z.string().min(1), // TODO: passer en z.uuid() quand on branche Supabase
+    id: z.string().min(1),
     slug: z.string().min(1),
     nom: z.string(),
     description: z.string(),
+    pays: PaysSchema.default("BE"),
     province: ProvinceSchema,
     ville: z.string(),
     adresse: z.string(),
     specialites: z.array(SpecialiteSchema).min(1),
     marques: z.array(z.string()),
-    horaires: z.string(), // format libre, ex. "Lun-Sam 9h-18h · Dim fermé"
+    horaires: z.string(),
     photos: z.array(z.string().url()).min(1),
     coordonnees: z.object({ lat: z.number(), lng: z.number() }),
     contact: z.object({
@@ -48,7 +47,7 @@ export const MagasinSchema = z.object({
 export type Magasin = z.infer<typeof MagasinSchema>;
 
 export const MagasinsFilterSchema = z.object({
-    type: z.enum(["peche", "chasse"]).optional(),
+    pays: PaysSchema.optional(),
     specialite: SpecialiteSchema.optional(),
     province: ProvinceSchema.optional(),
     partenaireOnly: z.boolean().optional(),

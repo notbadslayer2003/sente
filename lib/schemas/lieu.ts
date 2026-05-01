@@ -1,11 +1,11 @@
 import { z } from "zod";
 
-export const TypeLieuSchema = z.enum(["peche", "chasse"]);
-export type TypeLieu = z.infer<typeof TypeLieuSchema>;
+export const PaysSchema = z.enum(["BE", "FR"]);
+export type Pays = z.infer<typeof PaysSchema>;
 
-export const TypeLieuLabel: Record<TypeLieu, string> = {
-    peche: "Pêche",
-    chasse: "Chasse",
+export const PaysLabel: Record<Pays, string> = {
+    BE: "Wallonie",
+    FR: "France",
 };
 
 export const EspeceSchema = z.enum([
@@ -25,29 +25,6 @@ export const EspeceLabel: Record<Espece, string> = {
     blanc: "Poisson blanc",
     silure: "Silure",
     esturgeon: "Esturgeon",
-};
-
-export const GibierSchema = z.enum([
-    "cerf",
-    "sanglier",
-    "chevreuil",
-    "faisan",
-    "perdrix",
-    "lievre",
-    "canard",
-    "becasse",
-]);
-export type Gibier = z.infer<typeof GibierSchema>;
-
-export const GibierLabel: Record<Gibier, string> = {
-    cerf: "Cerf",
-    sanglier: "Sanglier",
-    chevreuil: "Chevreuil",
-    faisan: "Faisan",
-    perdrix: "Perdrix",
-    lievre: "Lièvre",
-    canard: "Canard",
-    becasse: "Bécasse",
 };
 
 export const ProvinceSchema = z.enum([
@@ -89,13 +66,12 @@ export const LieuSchema = z.object({
     slug: z.string().min(1),
     nom: z.string(),
     description: z.string(),
-    type: TypeLieuSchema,
+    pays: PaysSchema.default("BE"),
     province: ProvinceSchema,
     commune: z.string(),
     superficieHa: z.number().positive(),
     profondeurMaxM: z.number().positive().optional(),
     especes: z.array(EspeceSchema).default([]),
-    gibier: z.array(GibierSchema).default([]),
     reglement: ReglementSchema,
     tarif: TarifSchema,
     recordKg: z.number().positive().optional(),
@@ -114,9 +90,8 @@ export const LieuSchema = z.object({
 export type Lieu = z.infer<typeof LieuSchema>;
 
 export const LieuxFilterSchema = z.object({
-    type: TypeLieuSchema.optional(),
+    pays: PaysSchema.optional(),
     espece: EspeceSchema.optional(),
-    gibier: GibierSchema.optional(),
     province: ProvinceSchema.optional(),
     reservableOnly: z.boolean().optional(),
 });

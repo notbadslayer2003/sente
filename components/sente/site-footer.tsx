@@ -3,94 +3,59 @@ import Link from "next/link";
 export function SiteFooter() {
     return (
         <footer className="bg-foreground text-background">
-            {/* Bloc principal */}
-            <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12 py-20 sm:py-24">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-16">
-                    {/* Colonne brand */}
-                    <div className="space-y-5">
+            <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12 py-16 sm:py-20">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">
+                    <div className="col-span-2 lg:col-span-1 space-y-4">
                         <Link
                             href="/"
-                            className="font-display-soft text-4xl tracking-tight inline-block"
+                            className="font-display text-3xl tracking-tight inline-block"
                         >
                             Sente
                         </Link>
                         <p className="text-sm text-background/70 leading-relaxed max-w-xs">
-                            L&apos;annuaire de la pêche et de la chasse en Wallonie.
-                            Lieux, magasins, exploitants — au même endroit.
-                        </p>
-                        <p className="text-xs text-background/50 leading-relaxed pt-2">
-                            Mons, Belgique
-                            <br />
-                            hello@sente.app
+                            La plateforme des pêcheurs, des étangs et des magasins
+                            spécialisés. Wallonie & France.
                         </p>
                     </div>
 
-                    {/* Colonne Découvrir */}
-                    <FooterColumn title="Découvrir">
-                        <FooterLink href="/lieux">Lieux</FooterLink>
-                        <FooterLink href="/magasins">Magasins</FooterLink>
-                        <FooterLink href="/manifeste">À propos</FooterLink>
-                    </FooterColumn>
+                    <Col title="Pêcheurs">
+                        <FooterLink href="/lieux">Trouver un étang</FooterLink>
+                        <FooterLink href="/magasins">Magasins partenaires</FooterLink>
+                        <FooterLink href="/feed">Fil communauté</FooterLink>
+                        <FooterLink href="/signup">Créer un compte</FooterLink>
+                    </Col>
 
-                    {/* Colonne Pros */}
-                    <FooterColumn title="Pour les professionnels">
-                        <FooterLink href="/contact">Devenir partenaire</FooterLink>
-                        <FooterLink href="/login">Connexion exploitant</FooterLink>
+                    <Col title="Pros">
+                        <FooterLink href="/partenaires">Tarifs étang & magasin</FooterLink>
+                        <FooterLink href="/partenaires#etang">Référencer mon étang</FooterLink>
+                        <FooterLink href="/partenaires#magasin">Référencer mon magasin</FooterLink>
                         <FooterLink href="/contact">Nous contacter</FooterLink>
-                    </FooterColumn>
+                    </Col>
 
-                    {/* Colonne Légal */}
-                    <FooterColumn title="Légal">
+                    <Col title="Légal">
                         <FooterLink href="/mentions-legales">Mentions légales</FooterLink>
-                        <FooterLink href="/cgu">Conditions d&apos;utilisation</FooterLink>
+                        <FooterLink href="/cgu">CGU</FooterLink>
                         <FooterLink href="/confidentialite">Confidentialité</FooterLink>
-                    </FooterColumn>
+                        <FooterLink href="/cookies">Cookies</FooterLink>
+                    </Col>
+                </div>
+
+                <div className="mt-16 pt-8 border-t border-background/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-background/50">
+                    <p>© {new Date().getFullYear()} Sente — TwoStack, Mons.</p>
+                    <p className="uppercase tracking-[0.2em]">Pêche · Wallonie & France</p>
                 </div>
             </div>
-
-            {/* Bottom bar */}
-            <div className="border-t border-background/10">
-                <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-background/60">
-                    <p className="tracking-wide">
-                        © {new Date().getFullYear()} Sente — Tous droits réservés
-                    </p>
-                    <div className="flex items-center gap-5">
-                    <a
-                        href="https://instagram.com/sente.app"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="hover:text-background transition-colors uppercase tracking-wider"
-                        >
-                        Instagram
-                    </a>
-                    <a
-                    href="https://facebook.com/sente.app"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:text-background transition-colors uppercase tracking-wider"
-                    >
-                    Facebook
-                </a>
-            </div>
-        </div>
-</div>
-</footer>
-);
+        </footer>
+    );
 }
 
-function FooterColumn({
-                          title,
-                          children,
-                      }: {
-    title: string;
-    children: React.ReactNode;
-}) {
+function Col({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <div className="space-y-5">
-            <p className="text-xs uppercase tracking-[0.25em] text-background/50">
+        <div className="space-y-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-background/50 font-medium">
                 {title}
             </p>
-            <ul className="space-y-3 text-sm">{children}</ul>
+            <ul className="space-y-2.5">{children}</ul>
         </div>
     );
 }
@@ -106,7 +71,7 @@ function FooterLink({
         <li>
             <Link
                 href={href}
-                className="text-background/85 hover:text-accent transition-colors"
+                className="text-sm text-background/80 hover:text-accent transition-colors"
             >
                 {children}
             </Link>

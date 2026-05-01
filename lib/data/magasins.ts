@@ -12,11 +12,8 @@ export async function getMagasins(
 ): Promise<Magasin[]> {
     await delay(150);
     let rows = MOCK_MAGASINS;
-    if (filter.type === "chasse") {
-        rows = rows.filter((m) => m.specialites.includes("chasse"));
-    }
-    if (filter.type === "peche") {
-        rows = rows.filter((m) => m.specialites.some((s) => s !== "chasse"));
+    if (filter.pays) {
+        rows = rows.filter((m) => m.pays === filter.pays);
     }
     if (filter.specialite) {
         rows = rows.filter((m) => m.specialites.includes(filter.specialite!));

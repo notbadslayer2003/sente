@@ -2,22 +2,16 @@
 
 import { useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import {
-    EspeceLabel,
-    PaysLabel,
-    ProvinceLabel,
-    type Espece,
-    type Pays,
-    type Province,
-} from "@/lib/schemas/lieu";
+import { PaysLabel, ProvinceLabel, type Pays, type Province } from "@/lib/schemas/lieu";
+import { SpecialiteLabel, type Specialite } from "@/lib/schemas/magasin";
 
-const ESPECES: Espece[] = [
+const SPECIALITES: Specialite[] = [
+    "general",
     "carpe",
     "carnassier",
-    "salmonide",
-    "blanc",
-    "silure",
-    "esturgeon",
+    "mouche",
+    "peche-blanc",
+    "peche-mer",
 ];
 
 const PAYS_LIST: Pays[] = ["BE", "FR"];
@@ -30,7 +24,7 @@ const PROVINCES: Province[] = [
     "brabant-wallon",
 ];
 
-export function FiltersBar() {
+export function FiltersBarMagasins() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -55,12 +49,12 @@ export function FiltersBar() {
     };
 
     const currentPays = searchParams.get("pays") ?? "";
-    const currentEspece = searchParams.get("espece") ?? "";
+    const currentSpecialite = searchParams.get("specialite") ?? "";
     const currentProvince = searchParams.get("province") ?? "";
-    const currentReservable = searchParams.get("reservable") === "1";
+    const currentPartenaire = searchParams.get("partenaire") === "1";
 
     const hasFilters =
-        currentPays || currentEspece || currentProvince || currentReservable;
+        currentPays || currentSpecialite || currentProvince || currentPartenaire;
 
     return (
         <div className="border-y border-border bg-secondary/30">
@@ -90,27 +84,30 @@ export function FiltersBar() {
                         ]}
                     />
                     <Select
-                        label="Espèce"
-                        value={currentEspece}
-                        onChange={(v) => setParam("espece", v)}
+                        label="Spécialité"
+                        value={currentSpecialite}
+                        onChange={(v) => setParam("specialite", v)}
                         disabled={isPending}
                         options={[
                             { value: "", label: "Toutes" },
-                            ...ESPECES.map((e) => ({ value: e, label: EspeceLabel[e] })),
+                            ...SPECIALITES.map((s) => ({
+                                value: s,
+                                label: SpecialiteLabel[s],
+                            })),
                         ]}
                     />
                     <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
                         <input
                             type="checkbox"
-                            checked={currentReservable}
+                            checked={currentPartenaire}
                             onChange={(e) =>
-                                setParam("reservable", e.target.checked ? "1" : null)
+                                setParam("partenaire", e.target.checked ? "1" : null)
                             }
                             disabled={isPending}
                             className="accent-[var(--accent)]"
                         />
                         <span className="uppercase tracking-wide text-xs">
-              Réservable uniquement
+              Partenaires uniquement
             </span>
                     </label>
 
@@ -144,9 +141,9 @@ function Select({
 }) {
     return (
         <div className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                {label}
-            </span>
+      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+        {label}
+      </span>
             <select
                 value={value}
                 onChange={(e) => onChange(e.target.value)}

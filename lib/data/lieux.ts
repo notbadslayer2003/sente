@@ -10,14 +10,11 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function getLieux(filter: LieuxFilter = {}): Promise<Lieu[]> {
     await delay(150);
     let rows = MOCK_LIEUX;
-    if (filter.type) {
-        rows = rows.filter((l) => l.type === filter.type);
+    if (filter.pays) {
+        rows = rows.filter((l) => l.pays === filter.pays);
     }
     if (filter.espece) {
         rows = rows.filter((l) => l.especes.includes(filter.espece!));
-    }
-    if (filter.gibier) {
-        rows = rows.filter((l) => l.gibier.includes(filter.gibier!));
     }
     if (filter.province) {
         rows = rows.filter((l) => l.province === filter.province);

@@ -5,7 +5,6 @@ import "./globals.css";
 const fraunces = Fraunces({
     subsets: ["latin"],
     variable: "--font-display",
-    axes: ["SOFT", "WONK", "opsz"],
     display: "swap",
 });
 
@@ -16,13 +15,9 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-    title: {
-        default: "Sente — Pêche & chasse en Wallonie",
-        template: "%s — Sente",
-    },
+    title: "Sente — Pêche · Wallonie & France",
     description:
-        "L'annuaire de la pêche et de la chasse en Wallonie. Lieux, magasins, exploitants — au même endroit.",
-    metadataBase: new URL("https://sente.app"),
+        "L'annuaire des étangs et des magasins. La communauté qui fait vivre la pêche en Wallonie et en France.",
 };
 
 export default function RootLayout({
@@ -32,7 +27,7 @@ export default function RootLayout({
 }) {
     return (
         <html lang="fr" className={`${fraunces.variable} ${geist.variable}`}>
-        <body className="bg-background text-foreground font-body antialiased">
+        <body className="font-body bg-background text-foreground antialiased">
         {children}
         </body>
         </html>

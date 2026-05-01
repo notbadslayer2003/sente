@@ -4,7 +4,7 @@ const photo = (id: string) =>
     `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1600&q=80`;
 
 export const MOCK_MAGASINS: Magasin[] = [
-    // ───────────── PÊCHE — partenaires ─────────────
+    // ───────────── Partenaires ─────────────
     {
         id: "22222222-2222-2222-2222-222222222201",
         slug: "carp-spirit-liege",
@@ -63,7 +63,7 @@ export const MOCK_MAGASINS: Magasin[] = [
         nbAvis: 76,
     },
 
-    // ───────────── PÊCHE — référencés (non-partenaires) ─────────────
+    // ───────────── Référencés (non-partenaires) ─────────────
     {
         id: "22222222-2222-2222-2222-222222222204",
         slug: "decathlon-mons",
@@ -135,64 +135,5 @@ export const MOCK_MAGASINS: Magasin[] = [
         partenaire: false,
         noteMoyenne: 4.9,
         nbAvis: 42,
-    },
-
-    // ───────────── CHASSE — partenaires ─────────────
-    {
-        id: "22222222-2222-2222-2222-222222222208",
-        slug: "armurerie-lambot-liege",
-        nom: "Armurerie Lambot",
-        description:
-            "Armurier wallon depuis trois générations. Chasse à tir, à l'arc, optique. Stand de tir intégré pour réglage et essai.",
-        province: "liege",
-        ville: "Liège",
-        adresse: "Rue Saint-Gilles 145, 4000 Liège",
-        specialites: ["chasse"],
-        marques: ["Browning", "Beretta", "Blaser", "Sauer", "Leica", "Swarovski"],
-        horaires: "Mar-Ven 9h30-18h · Sam 9h-17h · Dim-Lun fermé",
-        photos: [photo("photo-1584824486509-112e4181ff6b")],
-        coordonnees: { lat: 50.638, lng: 5.572 },
-        contact: { telephone: "+32 4 000 00 00", siteWeb: "https://armurerie-lambot.be" },
-        partenaire: true,
-        noteMoyenne: 4.7,
-        nbAvis: 88,
-    },
-    {
-        id: "22222222-2222-2222-2222-222222222209",
-        slug: "armurerie-ardenne-namur",
-        nom: "Armurerie de l'Ardenne",
-        description:
-            "Spécialiste chasse au grand gibier. Carabines, optique haut de gamme, équipement battue. Conseil technique poussé.",
-        province: "namur",
-        ville: "Namur",
-        adresse: "Rue Saint-Loup 22, 5000 Namur",
-        specialites: ["chasse"],
-        marques: ["Sauer", "Mauser", "Tikka", "Sako", "Zeiss", "Leica"],
-        horaires: "Mar-Sam 9h30-18h · Dim-Lun fermé",
-        photos: [photo("photo-1595590424283-b8f17842773f")],
-        coordonnees: { lat: 50.466, lng: 4.86 },
-        contact: { telephone: "+32 81 00 00 00", email: "info@armurerie-ardenne.be" },
-        partenaire: true,
-        noteMoyenne: 4.6,
-        nbAvis: 54,
-    },
-    {
-        id: "22222222-2222-2222-2222-222222222210",
-        slug: "chasse-loisirs-marche",
-        nom: "Chasse & Loisirs",
-        description:
-            "Boutique chasse complète Marche-en-Famenne. Armes, munitions, tenue, accessoires pour battue et approche. Vente et entretien.",
-        province: "luxembourg",
-        ville: "Marche-en-Famenne",
-        adresse: "Avenue de la Toison d'Or 14, 6900 Marche-en-Famenne",
-        specialites: ["chasse"],
-        marques: ["Beretta", "Browning", "Benelli", "Härkila", "Seeland"],
-        horaires: "Mar-Ven 9h-18h · Sam 9h-17h · Dim-Lun fermé",
-        photos: [photo("photo-1593750403269-90df50adea58")],
-        coordonnees: { lat: 50.225, lng: 5.343 },
-        contact: { telephone: "+32 84 00 00 00", siteWeb: "https://chasse-loisirs.be" },
-        partenaire: true,
-        noteMoyenne: 4.5,
-        nbAvis: 41,
     },
 ];

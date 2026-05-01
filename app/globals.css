@@ -101,3 +101,26 @@
 .leaflet-tooltip {
   z-index: 2 !important;
 }
+.prose-sente ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-sente ul li {
+  margin-top: 0.25rem;
+}
+
+.prose-sente p + p {
+  margin-top: 1rem;
+}
+
+.prose-sente a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.prose-sente a:hover {
+  color: var(--accent);
+}
