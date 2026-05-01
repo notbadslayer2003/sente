@@ -4,13 +4,13 @@ const photo = (id: string) =>
     `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1600&q=80`;
 
 export const MOCK_MAGASINS: Magasin[] = [
-    // ───────────── Partenaires ─────────────
     {
         id: "22222222-2222-2222-2222-222222222201",
         slug: "carp-spirit-liege",
         nom: "Carp Spirit Liège",
         description:
             "Boutique spécialisée carpe en bord de Meuse. Sélection pointue de cannes, moulinets, bivvys et bouillettes premium.",
+        pays: "BE",
         province: "liege",
         ville: "Liège",
         adresse: "Quai des Ardennes 42, 4020 Liège",
@@ -30,6 +30,7 @@ export const MOCK_MAGASINS: Magasin[] = [
         nom: "Pacific Pêche Tournai",
         description:
             "Grande surface pêche multi-techniques. Carpe, carnassier, blanc, mer. Conseil personnalisé et matériel pour tous niveaux.",
+        pays: "BE",
         province: "hainaut",
         ville: "Tournai",
         adresse: "Boulevard Eisenhower 110, 7500 Tournai",
@@ -49,6 +50,7 @@ export const MOCK_MAGASINS: Magasin[] = [
         nom: "Ardenne Pêche",
         description:
             "Indépendant ardennais reconnu pour la pêche à la mouche et truite. Sélection rivière, montage à façon, stages d'initiation.",
+        pays: "BE",
         province: "luxembourg",
         ville: "Bastogne",
         adresse: "Rue du Sablon 18, 6600 Bastogne",
@@ -62,13 +64,12 @@ export const MOCK_MAGASINS: Magasin[] = [
         noteMoyenne: 4.9,
         nbAvis: 76,
     },
-
-    // ───────────── Référencés (non-partenaires) ─────────────
     {
         id: "22222222-2222-2222-2222-222222222204",
         slug: "decathlon-mons",
         nom: "Decathlon Mons",
         description: "Rayon pêche Caperlan complet. Idéal débutants et famille. Bon rapport qualité-prix sur le matériel d'initiation.",
+        pays: "BE",
         province: "hainaut",
         ville: "Mons",
         adresse: "Rue des Sandrinettes 25, 7033 Cuesmes",
@@ -87,6 +88,7 @@ export const MOCK_MAGASINS: Magasin[] = [
         slug: "au-roi-de-la-peche-namur",
         nom: "Au Roi de la Pêche",
         description: "Indépendant namurois historique. Toutes techniques, gros stock blanc et carnassier, conseil expérimenté.",
+        pays: "BE",
         province: "namur",
         ville: "Namur",
         adresse: "Rue de Bruxelles 88, 5000 Namur",
@@ -105,6 +107,7 @@ export const MOCK_MAGASINS: Magasin[] = [
         slug: "la-maison-du-pecheur-charleroi",
         nom: "La Maison du Pêcheur",
         description: "Boutique généraliste à Charleroi, large choix de matériel carpe, carnassier et appâts vivants frais.",
+        pays: "BE",
         province: "hainaut",
         ville: "Charleroi",
         adresse: "Chaussée de Bruxelles 200, 6040 Jumet",
@@ -123,6 +126,7 @@ export const MOCK_MAGASINS: Magasin[] = [
         slug: "mouches-co-wavre",
         nom: "Mouches & Co",
         description: "Atelier-boutique dédié à la pêche à la mouche. Montages sur mesure, matériel haut de gamme, conseils techniques.",
+        pays: "BE",
         province: "brabant-wallon",
         ville: "Wavre",
         adresse: "Place Henri Berger 5, 1300 Wavre",

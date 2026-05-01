@@ -10,6 +10,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Lacs de l'Eau d'Heure — Plate Taille",
         description:
             "Le plus grand lac de Belgique. 351 ha de plan d'eau, profondeurs marquées, populations carpe et carnassier solides. Pêche au coup, du bord et en barque.",
+        pays: "BE",
         province: "hainaut",
         commune: "Cerfontaine",
         superficieHa: 351,
@@ -32,6 +33,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Étang de Virelles",
         description:
             "Réserve naturelle et plan d'eau de 80 ha à 5 km de Chimay. Carpes communes et miroirs, gros poissons connus. Pêche réglementée, postes numérotés.",
+        pays: "BE",
         province: "hainaut",
         commune: "Chimay",
         superficieHa: 80,
@@ -54,6 +56,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Étang de Bambois",
         description:
             "Plan d'eau familial de 7 ha, idéal pêche découverte et carpe légère. Cadre boisé, accessible, postes ombragés.",
+        pays: "BE",
         province: "namur",
         commune: "Fosses-la-Ville",
         superficieHa: 7,
@@ -75,6 +78,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Domaine du Cheslin",
         description:
             "Carpodrome privé 6 ha, postes numérotés avec abri, no-kill strict. Cheptel jusqu'à 32 kg, gestion sérieuse, baitboats autorisés.",
+        pays: "BE",
         province: "luxembourg",
         commune: "Bastogne",
         superficieHa: 6,
@@ -97,6 +101,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Gravière de Hermalle-sous-Argenteau",
         description:
             "Ancienne gravière reconvertie, 14 ha, profondeurs jusqu'à 12 m. Carpes sauvages, brochets, perches. Pêche du bord uniquement.",
+        pays: "BE",
         province: "liege",
         commune: "Oupeye",
         superficieHa: 14,
@@ -118,6 +123,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Lac de Bütgenbach",
         description:
             "Lac de barrage 120 ha en Cantons de l'Est. Truites, brochets, perches. Cadre exceptionnel, eau froide, pêche en barque autorisée.",
+        pays: "BE",
         province: "liege",
         commune: "Bütgenbach",
         superficieHa: 120,
@@ -139,6 +145,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Carpodrome de Genappe",
         description:
             "Étang aménagé carpe 4 ha, postes équipés (table, pontons), location matériel. Idéal sessions courtes ou découverte.",
+        pays: "BE",
         province: "brabant-wallon",
         commune: "Genappe",
         superficieHa: 4,
@@ -161,6 +168,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Domaine de Mirwart",
         description:
             "Étangs forestiers en pleine Ardenne, 9 ha cumulés. Truites fario, ombles. Réservation obligatoire, accès limité.",
+        pays: "BE",
         province: "luxembourg",
         commune: "Saint-Hubert",
         superficieHa: 9,
@@ -182,6 +190,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Étang de Pont-à-Lesse",
         description:
             "Plan d'eau 5 ha en bord de Lesse. Carpe, gardon, tanche. Ambiance familiale, pêche du bord.",
+        pays: "BE",
         province: "namur",
         commune: "Dinant",
         superficieHa: 5,
@@ -203,6 +212,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Lac de Robertville",
         description:
             "Barrage 62 ha en Hautes Fagnes. Carnassier, perche, gardon. Pêche en barque autorisée, panorama exceptionnel.",
+        pays: "BE",
         province: "liege",
         commune: "Waimes",
         superficieHa: 62,
@@ -224,6 +234,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Étang de l'Abbaye de Villers",
         description:
             "Petit étang historique 2 ha, en pied des ruines. Pêche découverte, gardon, carpe légère. Très accessible.",
+        pays: "BE",
         province: "brabant-wallon",
         commune: "Villers-la-Ville",
         superficieHa: 2,
@@ -245,6 +256,7 @@ export const MOCK_LIEUX: Lieu[] = [
         nom: "Domaine de Roost",
         description:
             "Étang privé 8 ha, no-kill strict, baitboats autorisés. Cheptel travaillé, sessions 48h ou semaine. Accueil à la pièce.",
+        pays: "BE",
         province: "hainaut",
         commune: "Soignies",
         superficieHa: 8,
