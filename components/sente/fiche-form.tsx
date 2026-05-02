@@ -2,12 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { updateOrgFicheAction } from "@/app/actions/org";
+import { getRegionsForCountry, type CountryCode } from "@/lib/constants/regions";
 
 type OrgFields = {
     id: string;
     name: string;
     baseline: string;
     description: string;
+    country: CountryCode;
     region: string;
     city: string;
     postal_code: string;
@@ -26,6 +28,8 @@ export function FicheForm({ org }: { org: OrgFields }) {
     const [success, setSuccess] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [isPending, startTransition] = useTransition();
+
+    const regions = getRegionsForCountry(org.country);
 
     const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -81,13 +85,19 @@ export function FicheForm({ org }: { org: OrgFields }) {
             {/* SECTION : Localisation */}
             <Section
                 title="Localisation"
-                description="Pour que les pêcheurs te trouvent. Lat/Lng optionnels mais recommandés (Google Maps → clic droit → copie les coordonnées)."
+                description={`Pays fixé à la création (${
+                    org.country === "BE" ? "Belgique" : "France"
+                }). Si erreur, contacte le support.`}
             >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <Field
-                        label="Région / Province"
+                    <SelectField
+                        label="Région"
                         name="region"
                         defaultValue={org.region}
+                        options={[
+                            { value: "", label: "Sélectionner" },
+                            ...regions.map((r) => ({ value: r.value, label: r.label })),
+                        ]}
                         error={fieldErrors.region}
                     />
                     <Field
@@ -190,9 +200,7 @@ export function FicheForm({ org }: { org: OrgFields }) {
             {/* Submit */}
             <div className="border-t border-border pt-8 flex flex-wrap items-center justify-between gap-4 sticky bottom-0 bg-background/95 backdrop-blur py-4">
                 <div className="text-sm">
-                    {error && (
-                        <span className="text-destructive">{error}</span>
-                    )}
+                    {error && <span className="text-destructive">{error}</span>}
                     {success && (
                         <span className="text-primary">Modifications enregistrées.</span>
                     )}
@@ -274,9 +282,56 @@ function Field({
                 <span className="mt-1.5 text-xs text-destructive block">{error}</span>
             )}
             {!error && hint && (
-                <span className="mt-1.5 text-xs text-muted-foreground block">
-          {hint}
-        </span>
+                <span className="mt-1.5 text-xs text-muted-foreground block">{hint}</span>
+            )}
+        </label>
+    );
+}
+
+function SelectField({
+                         label,
+                         name,
+                         defaultValue,
+                         options,
+                         required = false,
+                         hint,
+                         error,
+                     }: {
+    label: string;
+    name: string;
+    defaultValue?: string;
+    options: { value: string; label: string }[];
+    required?: boolean;
+    hint?: string;
+    error?: string;
+}) {
+    return (
+        <label className="block">
+      <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+        {label}
+          {required && " *"}
+      </span>
+            <select
+                name={name}
+                defaultValue={defaultValue}
+                required={required}
+                className={`mt-2 w-full bg-background border px-4 py-3 text-sm focus:outline-none transition-colors cursor-pointer ${
+                    error
+                        ? "border-destructive focus:border-destructive"
+                        : "border-border focus:border-accent"
+                }`}
+            >
+                {options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                        {o.label}
+                    </option>
+                ))}
+            </select>
+            {error && (
+                <span className="mt-1.5 text-xs text-destructive block">{error}</span>
+            )}
+            {!error && hint && (
+                <span className="mt-1.5 text-xs text-muted-foreground block">{hint}</span>
             )}
         </label>
     );
@@ -320,9 +375,7 @@ function Textarea({
                 <span className="mt-1.5 text-xs text-destructive block">{error}</span>
             )}
             {!error && hint && (
-                <span className="mt-1.5 text-xs text-muted-foreground block">
-          {hint}
-        </span>
+                <span className="mt-1.5 text-xs text-muted-foreground block">{hint}</span>
             )}
         </label>
     );

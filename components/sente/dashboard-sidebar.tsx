@@ -27,7 +27,7 @@ export function DashboardSidebar({
         { href: `${base}/photos`, label: "Photos" },
         ...(orgType === "etang"
             ? [
-                { href: `${base}/postes`, label: "Postes", disabled: true },
+                { href: `${base}/postes`, label: "Postes" },
                 { href: `${base}/registre`, label: "Registre pêcheurs", disabled: true },
             ]
             : [
