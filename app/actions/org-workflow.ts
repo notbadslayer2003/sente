@@ -48,7 +48,7 @@ export async function approveOrgAction(
     const supabase = await createClient();
     const { error } = await supabase.rpc("approve_organization", {
         p_org_id: parsed.data.org_id,
-        p_note: parsed.data.note ?? null,
+        p_note: parsed.data.note ?? undefined,
     });
 
     if (error) {
