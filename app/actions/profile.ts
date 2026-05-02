@@ -82,24 +82,32 @@ export async function updateProfileAction(
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Non authentifié" };
 
-    const updateFields: Record<string, unknown> = {
-        full_name: parsed.data.full_name,
-        bio: parsed.data.bio,
-        city: parsed.data.city,
-        country: parsed.data.country,
-        especes_pref: parsed.data.especes_pref,
-        marketing_opt_in: parsed.data.marketing_opt_in,
-    };
-
-    // Marketing opt-in : track la date du consentement à chaque changement
-    if (parsed.data.marketing_opt_in) {
-        updateFields.marketing_opt_in_at = new Date().toISOString();
-    }
-
-    const { error } = await supabase
-        .from("profiles")
-        .update(updateFields)
-        .eq("id", user.id);
+    // Construit l'objet de mise à jour avec un type accepté par Supabase JS.
+    // marketing_opt_in_at n'est mis à jour que si l'opt-in est activé.
+    const { error } = parsed.data.marketing_opt_in
+        ? await supabase
+            .from("profiles")
+            .update({
+                full_name: parsed.data.full_name,
+                bio: parsed.data.bio,
+                city: parsed.data.city,
+                country: parsed.data.country,
+                especes_pref: parsed.data.especes_pref,
+                marketing_opt_in: true,
+                marketing_opt_in_at: new Date().toISOString(),
+            })
+            .eq("id", user.id)
+        : await supabase
+            .from("profiles")
+            .update({
+                full_name: parsed.data.full_name,
+                bio: parsed.data.bio,
+                city: parsed.data.city,
+                country: parsed.data.country,
+                especes_pref: parsed.data.especes_pref,
+                marketing_opt_in: false,
+            })
+            .eq("id", user.id);
 
     if (error) {
         console.error("updateProfile failed:", error);
