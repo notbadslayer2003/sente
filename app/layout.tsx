@@ -15,9 +15,23 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-    title: "Sente — Pêche · Wallonie & France",
+    title: {
+        default: "Sente — la communauté pêche",
+        template: "%s | Sente",
+    },
     description:
-        "L'annuaire des étangs et des magasins. La communauté qui fait vivre la pêche en Wallonie et en France.",
+        "Découvre les étangs et magasins de pêche en Wallonie et France. Communauté, événements, e-commerce.",
+    metadataBase: new URL(
+        process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
+    ),
+    openGraph: {
+        type: "website",
+        locale: "fr_BE",
+        siteName: "Sente",
+    },
+    twitter: {
+        card: "summary_large_image",
+    },
 };
 
 export default function RootLayout({

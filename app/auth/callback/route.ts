@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
     }
 
     const meta = user.user_metadata ?? {};
-    console.log("[/auth/callback] user metadata:", meta);
 
     const hasPendingOrg =
         meta.pending_org_type &&
@@ -40,7 +39,6 @@ export async function GET(request: NextRequest) {
         meta.pending_org_slug;
 
     if (hasPendingOrg) {
-        console.log("[/auth/callback] creating pending org:", meta.pending_org_slug);
 
         const { data: rpcData, error: rpcError } = await supabase
             .rpc("create_organization_for_owner", {
@@ -61,7 +59,6 @@ export async function GET(request: NextRequest) {
         }
 
         if (rpcData) {
-            console.log("[/auth/callback] org created:", rpcData);
 
             // Nettoyer les metadata
             await supabase.auth.updateUser({
