@@ -10,7 +10,15 @@ import { CarteWallonie } from "@/components/sente/carte-wallonie";
 import { PourLesExploitants } from "@/components/sente/pour-les-exploitants";
 import { Newsletter } from "@/components/sente/newsletter";
 
-export default async function HomePage() {
+type SearchParams = Promise<{ account_deleted?: string }>;
+
+export default async function HomePage({
+                                           searchParams,
+                                       }: Readonly<{
+    searchParams: SearchParams;
+}>) {
+    const params = await searchParams;
+    const accountDeleted = params.account_deleted === "1";
     const [lieuxFeatured, lieuxAll, magasinsPartenaires, magasinsAll] =
         await Promise.all([
             getLieux().then((all) => all.slice(0, 3)),
@@ -21,6 +29,14 @@ export default async function HomePage() {
 
     return (
         <>
+            {accountDeleted && (
+                <div className="bg-primary/10 border-b border-primary/30 pt-20 pb-4 sm:pt-24">
+                    <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12 text-sm text-foreground">
+                        Ton compte a été supprimé. Tes données seront purgées
+                        définitivement dans 30 jours.
+                    </div>
+                </div>
+            )}
             <Hero />
             <APropos />
             <CommentCaMarche />

@@ -1,15 +1,16 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import {createClient} from "@/lib/supabase/server";
 import {
     SignupSchema,
     LoginSchema,
     ForgotPasswordSchema,
     ResetPasswordSchema,
 } from "@/lib/schemas/auth";
-import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { slugify } from "@/lib/utils/slug";
+import {redirect} from "next/navigation";
+import {revalidatePath} from "next/cache";
+import {slugify} from "@/lib/utils/slug";
+import {createAdminClient} from "@/lib/supabase/admin";
 
 export type ActionResult =
     | { ok: true }
@@ -37,11 +38,11 @@ export async function signupAction(formData: FormData): Promise<ActionResult> {
             const path = issue.path[0]?.toString();
             if (path) fieldErrors[path] = issue.message;
         }
-        return { ok: false, error: "Vérifie les champs", fieldErrors };
+        return {ok: false, error: "Vérifie les champs", fieldErrors};
     }
 
     const supabase = await createClient();
-    const { email, password, firstName, lastName, role, orgName, orgCountry } =
+    const {email, password, firstName, lastName, role, orgName, orgCountry} =
         parsed.data;
 
     // Construit les metadata du futur user.
@@ -59,7 +60,7 @@ export async function signupAction(formData: FormData): Promise<ActionResult> {
         userMetadata.pending_org_slug = slugify(orgName);
     }
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    const {data: signUpData, error: signUpError} = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -71,23 +72,23 @@ export async function signupAction(formData: FormData): Promise<ActionResult> {
     });
 
     if (signUpError) {
-        return { ok: false, error: humanizeAuthError(signUpError.message) };
+        return {ok: false, error: humanizeAuthError(signUpError.message)};
     }
     if (!signUpData.user) {
-        return { ok: false, error: "Erreur inattendue, réessaie." };
+        return {ok: false, error: "Erreur inattendue, réessaie."};
     }
 
     // Pêcheur : terminé
-    if (role === "pecheur") return { ok: true };
+    if (role === "pecheur") return {ok: true};
 
     // Étang/magasin :
     // - Si Supabase exige confirmation email : session = null, /auth/callback créera l'org
     // - Si pas de confirmation requise : session existe, on crée tout de suite
     if (!signUpData.session) {
-        return { ok: true };
+        return {ok: true};
     }
 
-    const { error: rpcError } = await supabase.rpc(
+    const {error: rpcError} = await supabase.rpc(
         "create_organization_for_owner",
         {
             p_org_type: role,
@@ -107,7 +108,7 @@ export async function signupAction(formData: FormData): Promise<ActionResult> {
         };
     }
 
-    return { ok: true };
+    return {ok: true};
 }
 
 // =============================================================================
@@ -121,14 +122,35 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
 
     const parsed = LoginSchema.safeParse(raw);
     if (!parsed.success) {
-        return { ok: false, error: "Email ou mot de passe invalide" };
+        return {ok: false, error: "Email ou mot de passe invalide"};
     }
 
     const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    const {data: signInData, error} = await supabase.auth.signInWithPassword(
+        parsed.data
+    );
 
     if (error) {
-        return { ok: false, error: humanizeAuthError(error.message) };
+        return {ok: false, error: humanizeAuthError(error.message)};
+    }
+
+    // Check soft-delete via service_role (la RLS cache deleted_at IS NOT NULL aux users)
+    if (signInData.user) {
+        const admin = createAdminClient();
+        const {data: profile} = await admin
+            .from("profiles")
+            .select("deleted_at")
+            .eq("id", signInData.user.id)
+            .single();
+
+        if (profile?.deleted_at) {
+            await supabase.auth.signOut();
+            return {
+                ok: false,
+                error:
+                    "Ce compte a été supprimé. Si tu veux le réactiver, contacte le support depuis la page Contact.",
+            };
+        }
     }
 
     revalidatePath("/", "layout");
@@ -156,13 +178,13 @@ export async function forgotPasswordAction(
     });
 
     if (!parsed.success) {
-        return { ok: false, error: "Email invalide" };
+        return {ok: false, error: "Email invalide"};
     }
 
     const supabase = await createClient();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-    const { error } = await supabase.auth.resetPasswordForEmail(
+    const {error} = await supabase.auth.resetPasswordForEmail(
         parsed.data.email,
         {
             redirectTo: `${siteUrl}/auth/callback?next=/auth/reset-password`,
@@ -174,7 +196,7 @@ export async function forgotPasswordAction(
         console.error("forgotPassword error (silenced):", error.message);
     }
 
-    return { ok: true };
+    return {ok: true};
 }
 
 // =============================================================================
@@ -194,13 +216,13 @@ export async function resetPasswordAction(
             const path = issue.path[0]?.toString();
             if (path) fieldErrors[path] = issue.message;
         }
-        return { ok: false, error: "Vérifie les champs", fieldErrors };
+        return {ok: false, error: "Vérifie les champs", fieldErrors};
     }
 
     const supabase = await createClient();
 
     const {
-        data: { user },
+        data: {user},
     } = await supabase.auth.getUser();
     if (!user) {
         return {
@@ -209,12 +231,12 @@ export async function resetPasswordAction(
         };
     }
 
-    const { error } = await supabase.auth.updateUser({
+    const {error} = await supabase.auth.updateUser({
         password: parsed.data.password,
     });
 
     if (error) {
-        return { ok: false, error: humanizeAuthError(error.message) };
+        return {ok: false, error: humanizeAuthError(error.message)};
     }
 
     revalidatePath("/", "layout");

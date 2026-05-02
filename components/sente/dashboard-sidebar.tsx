@@ -35,7 +35,7 @@ export function DashboardSidebar({
                 { href: `${base}/commandes`, label: "Commandes", disabled: true },
             ]),
         { href: `${base}/posts`, label: "Posts & événements", disabled: true },
-        { href: `${base}/equipe`, label: "Équipe", disabled: true },
+        { href: `${base}/equipe`, label: "Équipe" },
         { href: `${base}/parametres`, label: "Paramètres", disabled: true },
     ];
 
