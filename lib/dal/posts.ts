@@ -19,6 +19,8 @@ export type PostListItem = {
         org_slug: string | null;
         org_type: string | null;
         is_sente_official: boolean;
+        followers_count: number; // 0 pour kind=user
+        is_followed_by_me: boolean; // false pour kind=user
     };
     // Mentions actives (étangs/magasins taggés)
     mentions: Array<{
@@ -39,7 +41,7 @@ export async function getFeedPosts(opts: {
     const limit = opts.limit ?? 20;
     const supabase = await createClient();
     const {
-        data: { user },
+        data: {user},
     } = await supabase.auth.getUser();
 
     let q = supabase
@@ -57,12 +59,12 @@ export async function getFeedPosts(opts: {
         )
         .eq("status", "published")
         .is("deleted_at", null)
-        .order("created_at", { ascending: false })
+        .order("created_at", {ascending: false})
         .limit(limit);
 
     if (opts.cursor) q = q.lt("created_at", opts.cursor);
 
-    const { data, error } = await q;
+    const {data, error} = await q;
     if (error || !data) {
         if (error) console.error("getFeedPosts failed:", error);
         return [];
@@ -75,7 +77,7 @@ export async function getFeedPosts(opts: {
     // Récupère les likes du user courant
     let likedSet = new Set<string>();
     if (user && items.length > 0) {
-        const { data: likes } = await supabase
+        const {data: likes} = await supabase
             .from("post_likes")
             .select("post_id")
             .in(
@@ -86,7 +88,31 @@ export async function getFeedPosts(opts: {
         likedSet = new Set((likes ?? []).map((l) => l.post_id));
     }
 
-    return items.map((p) => ({ ...p, is_liked_by_me: likedSet.has(p.id) }));
+// Récupère les follows du user courant pour les orgs auteurs
+    let followedSet = new Set<string>();
+    if (user) {
+        const orgIds = items
+            .filter((p) => p.author.kind === "org")
+            .map((p) => p.author.id);
+        if (orgIds.length > 0) {
+            const {data: follows} = await supabase
+                .from("follows")
+                .select("target_org_id")
+                .in("target_org_id", orgIds)
+                .eq("follower_user_id", user.id);
+            followedSet = new Set((follows ?? []).map((f) => f.target_org_id));
+        }
+    }
+
+    return items.map((p) => ({
+        ...p,
+        is_liked_by_me: likedSet.has(p.id),
+        author: {
+            ...p.author,
+            is_followed_by_me:
+                p.author.kind === "org" ? followedSet.has(p.author.id) : false,
+        },
+    }));
 }
 
 // Pour le fil "Suivi" : posts des orgs que l'utilisateur suit
@@ -98,7 +124,7 @@ export async function getFeedPostsFollowing(opts: {
     const limit = opts.limit ?? 20;
     const supabase = await createClient();
 
-    const { data: follows } = await supabase
+    const {data: follows} = await supabase
         .from("follows")
         .select("target_org_id")
         .eq("follower_user_id", opts.user_id);
@@ -122,12 +148,12 @@ export async function getFeedPostsFollowing(opts: {
         .eq("status", "published")
         .is("deleted_at", null)
         .in("author_org_id", followedOrgIds)
-        .order("created_at", { ascending: false })
+        .order("created_at", {ascending: false})
         .limit(limit);
 
     if (opts.cursor) q = q.lt("created_at", opts.cursor);
 
-    const { data } = await q;
+    const {data} = await q;
     const items = (data ?? [])
         .map(mapToPostListItem)
         .filter((p): p is PostListItem => p !== null);
@@ -135,7 +161,7 @@ export async function getFeedPostsFollowing(opts: {
     // Récupère les likes
     let likedSet = new Set<string>();
     if (items.length > 0) {
-        const { data: likes } = await supabase
+        const {data: likes} = await supabase
             .from("post_likes")
             .select("post_id")
             .in(
@@ -146,7 +172,15 @@ export async function getFeedPostsFollowing(opts: {
         likedSet = new Set((likes ?? []).map((l) => l.post_id));
     }
 
-    return items.map((p) => ({ ...p, is_liked_by_me: likedSet.has(p.id) }));
+// Pour le fil "suivi", toutes les orgs auteurs sont par définition suivies
+    return items.map((p) => ({
+        ...p,
+        is_liked_by_me: likedSet.has(p.id),
+        author: {
+            ...p.author,
+            is_followed_by_me: p.author.kind === "org",
+        },
+    }));
 }
 
 // Récupère les orgs dont le user est membre (pour le composer côté org)
@@ -218,13 +252,15 @@ function mapToPostListItem(row: unknown): PostListItem | null {
             org_type: string;
             cover_image_url: string | null;
             is_sente_official: boolean;
+            followers_count: number;
         } | {
             id: string;
             slug: string;
             name: string;
             org_type: string;
             cover_image_url: string | null;
-            is_sente_official: boolean
+            is_sente_official: boolean;
+            followers_count: number
         }[] | null;
         mentions: Array<{
             organization_id: string;
@@ -251,6 +287,8 @@ function mapToPostListItem(row: unknown): PostListItem | null {
             org_slug: null,
             org_type: null,
             is_sente_official: false,
+            followers_count: 0,
+            is_followed_by_me: false, // on remplit après
         };
     } else if (r.author_org_id && org) {
         author = {
@@ -261,6 +299,8 @@ function mapToPostListItem(row: unknown): PostListItem | null {
             org_slug: org.slug,
             org_type: org.org_type,
             is_sente_official: org.is_sente_official,
+            followers_count: org.followers_count ?? 0,
+            is_followed_by_me: false, // on remplit après
         };
     } else {
         return null;
@@ -318,10 +358,10 @@ export async function getPostDetail(
 ): Promise<PostDetail | null> {
     const supabase = await createClient();
     const {
-        data: { user },
+        data: {user},
     } = await supabase.auth.getUser();
 
-    const { data, error } = await supabase
+    const {data, error} = await supabase
         .from("posts")
         .select(
             `id, content, photos, espece, weight_kg, matos,
@@ -344,7 +384,7 @@ export async function getPostDetail(
     // Récupère le like de l'utilisateur courant si connecté
     let isLikedByMe = false;
     if (user) {
-        const { data: like } = await supabase
+        const {data: like} = await supabase
             .from("post_likes")
             .select("post_id")
             .eq("post_id", postId)
@@ -355,7 +395,27 @@ export async function getPostDetail(
 
     const base = mapToPostListItem(data);
     if (!base) return null;
-    return { ...base, is_liked_by_me: isLikedByMe };
+
+// is_followed_by_me pour l'auteur si c'est une org
+    let isFollowedByMe = false;
+    if (user && base.author.kind === "org") {
+        const { data: f } = await supabase
+            .from("follows")
+            .select("target_org_id")
+            .eq("target_org_id", base.author.id)
+            .eq("follower_user_id", user.id)
+            .maybeSingle();
+        isFollowedByMe = !!f;
+    }
+
+    return {
+        ...base,
+        is_liked_by_me: isLikedByMe,
+        author: {
+            ...base.author,
+            is_followed_by_me: isFollowedByMe,
+        },
+    };
 }
 
 export async function getPostComments(
@@ -363,11 +423,11 @@ export async function getPostComments(
 ): Promise<CommentTreeItem[]> {
     const supabase = await createClient();
     const {
-        data: { user },
+        data: {user},
     } = await supabase.auth.getUser();
 
     // Vérifie si l'utilisateur courant est l'auteur du post (pour le bouton "Masquer")
-    const { data: post } = await supabase
+    const {data: post} = await supabase
         .from("posts")
         .select("author_user_id")
         .eq("id", postId)
@@ -383,7 +443,7 @@ export async function getPostComments(
         )
         .eq("post_id", postId)
         .is("deleted_at", null)
-        .order("created_at", { ascending: true });
+        .order("created_at", {ascending: true});
 
     // Filtrage hidden côté DAL :
     // - non connecté → on ne ramène que les non-masqués
@@ -393,7 +453,7 @@ export async function getPostComments(
         q = q.is("hidden_at", null);
     }
 
-    const { data: comments, error } = await q;
+    const {data: comments, error} = await q;
 
     if (error || !comments) return [];
 
@@ -401,7 +461,7 @@ export async function getPostComments(
     const commentIds = comments.map((c) => c.id);
     let likedSet = new Set<string>();
     if (user && commentIds.length > 0) {
-        const { data: likes } = await supabase
+        const {data: likes} = await supabase
             .from("comment_likes")
             .select("comment_id")
             .in("comment_id", commentIds)

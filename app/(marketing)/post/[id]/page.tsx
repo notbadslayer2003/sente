@@ -1,19 +1,20 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
-import { getPostDetail, getPostComments } from "@/lib/dal/posts";
-import { PostActionsBar } from "@/components/sente/post-actions-bar";
-import { CommentsSection } from "@/components/sente/comments-section";
-import { PostMetaRow } from "@/components/sente/post-meta-row";
+import {notFound} from "next/navigation";
+import {ArrowLeft} from "lucide-react";
+import {createClient} from "@/lib/supabase/server";
+import {getPostDetail, getPostComments} from "@/lib/dal/posts";
+import {PostActionsBar} from "@/components/sente/post-actions-bar";
+import {CommentsSection} from "@/components/sente/comments-section";
+import {PostMetaRow} from "@/components/sente/post-meta-row";
+import {FollowButton} from "@/components/sente/follow-button";
 
 type Params = Promise<{ id: string }>;
 
-export async function generateMetadata({ params }: { params: Params }) {
-    const { id } = await params;
+export async function generateMetadata({params}: { params: Params }) {
+    const {id} = await params;
     const post = await getPostDetail(id);
-    if (!post) return { title: "Post introuvable — Sente" };
+    if (!post) return {title: "Post introuvable — Sente"};
     const excerpt = post.content.slice(0, 160);
     return {
         title: `${post.author.name} — Sente`,
@@ -26,8 +27,8 @@ export async function generateMetadata({ params }: { params: Params }) {
     };
 }
 
-export default async function PostPage({ params }: { params: Params }) {
-    const { id } = await params;
+export default async function PostPage({params}: { params: Params }) {
+    const {id} = await params;
     if (!id || id.length < 36) notFound();
 
     const [post, comments] = await Promise.all([
@@ -38,7 +39,7 @@ export default async function PostPage({ params }: { params: Params }) {
 
     const supabase = await createClient();
     const {
-        data: { user },
+        data: {user},
     } = await supabase.auth.getUser();
 
     return (
@@ -49,7 +50,7 @@ export default async function PostPage({ params }: { params: Params }) {
                     href="/feed"
                     className="inline-flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors mb-8"
                 >
-                    <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2} />
+                    <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2}/>
                     Retour au fil
                 </Link>
 
@@ -57,7 +58,7 @@ export default async function PostPage({ params }: { params: Params }) {
                 <article className="border border-border bg-secondary/10">
                     {/* Header auteur */}
                     <header className="px-6 py-5 flex items-center gap-4 border-b border-border">
-                        <AuthorAvatar author={post.author} />
+                        <AuthorAvatar author={post.author}/>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium leading-tight flex items-center gap-2 flex-wrap">
                                 {post.author.kind === "org" ? (
@@ -75,9 +76,10 @@ export default async function PostPage({ params }: { params: Params }) {
                                     <span>{post.author.name}</span>
                                 )}
                                 {post.author.is_sente_official && (
-                                    <span className="px-2 py-0.5 text-[9px] uppercase tracking-wide bg-primary/15 text-primary">
-                    Officiel
-                  </span>
+                                    <span
+                                        className="px-2 py-0.5 text-[9px] uppercase tracking-wide bg-primary/15 text-primary">
+                                        Officiel
+                                    </span>
                                 )}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
@@ -87,11 +89,20 @@ export default async function PostPage({ params }: { params: Params }) {
                                 })}
                             </p>
                         </div>
+                        {post.author.kind === "org" && (
+                            <FollowButton
+                                orgId={post.author.id}
+                                initialFollowing={post.author.is_followed_by_me}
+                                initialFollowersCount={post.author.followers_count}
+                                isLoggedIn={!!user}
+                                size="sm"
+                            />
+                        )}
                     </header>
 
                     {/* Photos */}
                     {post.photos.length > 0 && (
-                        <PhotoGallery photos={post.photos} title={post.author.name} />
+                        <PhotoGallery photos={post.photos} title={post.author.name}/>
                     )}
 
                     {/* Texte + métadonnées */}
@@ -161,13 +172,14 @@ function AuthorAvatar({
         .join("")
         .toUpperCase();
     return (
-        <div className="w-12 h-12 flex items-center justify-center bg-accent/10 text-accent text-sm font-medium uppercase tracking-wide shrink-0">
+        <div
+            className="w-12 h-12 flex items-center justify-center bg-accent/10 text-accent text-sm font-medium uppercase tracking-wide shrink-0">
             {initials || "?"}
         </div>
     );
 }
 
-function PhotoGallery({ photos, title }: { photos: string[]; title: string }) {
+function PhotoGallery({photos, title}: { photos: string[]; title: string }) {
     // 1 photo : pleine largeur
     if (photos.length === 1) {
         return (

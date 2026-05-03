@@ -5,6 +5,9 @@ import {getLieuBySlug, getLieux} from "@/lib/data/lieux";
 import {PaysLabel, ProvinceLabel, EspeceLabel} from "@/lib/schemas/lieu";
 import {Badge} from "@/components/ui/badge";
 import {LieuCard} from "@/components/sente/lieu-card";
+import { getFollowStatus } from "@/lib/dal/follow-status";
+import { FollowButton } from "@/components/sente/follow-button";
+import { createClient } from "@/lib/supabase/server";
 
 type Params = Promise<{ slug: string }>;
 
@@ -22,6 +25,9 @@ export default async function LieuPage({params}: { params: Params }) {
     const {slug} = await params;
     const lieu = await getLieuBySlug(slug);
     if (!lieu) notFound();
+    const followStatus = lieu.id ? await getFollowStatus(lieu.id) : { following: false, followers_count: 0 };
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
     const all = await getLieux({pays: lieu.pays});
     const similaires = all.filter((l) => l.id !== lieu.id).slice(0, 3);
@@ -52,7 +58,7 @@ export default async function LieuPage({params}: { params: Params }) {
                     <h1 className="mt-3 font-display-soft text-white text-5xl sm:text-6xl lg:text-7xl tracking-tight leading-[0.95] max-w-4xl">
                         {lieu.nom}
                     </h1>
-                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                    <div className="mt-6 flex flex-wrap items-center gap-4">
                         {lieu.reservable && (
                             <Badge className="bg-primary text-primary-foreground border-0">
                                 Réservable
@@ -62,6 +68,15 @@ export default async function LieuPage({params}: { params: Params }) {
                             <span className="text-white/85 text-sm">
                                 ★ {lieu.noteMoyenne.toFixed(1)} · {lieu.nbAvis} avis
                             </span>
+                        )}
+                        {lieu.id && (
+                            <FollowButton
+                                orgId={lieu.id}
+                                initialFollowing={followStatus.following}
+                                initialFollowersCount={followStatus.followers_count}
+                                isLoggedIn={!!user}
+                                tone="dark"
+                            />
                         )}
                     </div>
                 </div>

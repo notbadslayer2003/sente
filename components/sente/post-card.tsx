@@ -8,6 +8,7 @@ import type { PostListItem } from "@/lib/dal/posts";
 import { deletePostAction } from "@/app/actions/posts";
 import { PostActionsBar } from "@/components/sente/post-actions-bar";
 import { PostMetaRow } from "@/components/sente/post-meta-row";
+import {FollowButton} from "@/components/sente/follow-button";
 
 export function PostCard({
                              post,
@@ -59,14 +60,25 @@ export function PostCard({
                         )}
                         {post.author.is_sente_official && (
                             <span className="px-2 py-0.5 text-[9px] uppercase tracking-wide bg-primary/15 text-primary">
-                Officiel
-              </span>
+            Officiel
+          </span>
                         )}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                         {formatDate(post.created_at)}
                     </p>
                 </div>
+
+                {/* Bouton Suivre si l'auteur est une org et pas mon post */}
+                {post.author.kind === "org" && (
+                    <FollowButton
+                        orgId={post.author.id}
+                        initialFollowing={post.author.is_followed_by_me}
+                        initialFollowersCount={post.author.followers_count}
+                        isLoggedIn={currentUserId !== null}
+                        size="sm"
+                    />
+                )}
 
                 {isMyPost && (
                     <div className="relative">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { UserMenu } from "@/components/sente/user-menu";
+import {GlobalSearch} from "@/components/sente/global-search";
 
 export async function SiteHeader() {
     const supabase = await createClient();
@@ -47,6 +48,7 @@ export async function SiteHeader() {
                         Pros
                     </Link>
 
+                    <GlobalSearch/>
                     {user ? (
                         <UserMenu displayName={displayName} email={user.email ?? ""} />
                     ) : (

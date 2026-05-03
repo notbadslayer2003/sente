@@ -6,6 +6,9 @@ import {PaysLabel, ProvinceLabel} from "@/lib/schemas/lieu";
 import {SpecialiteLabel} from "@/lib/schemas/magasin";
 import {Badge} from "@/components/ui/badge";
 import {MagasinCard} from "@/components/sente/magasin-card";
+import {getFollowStatus} from "@/lib/dal/follow-status";
+import {FollowButton} from "@/components/sente/follow-button";
+import {createClient} from "@/lib/supabase/server";
 
 type Params = Promise<{ slug: string }>;
 
@@ -23,6 +26,14 @@ export default async function MagasinPage({params}: { params: Params }) {
     const {slug} = await params;
     const magasin = await getMagasinBySlug(slug);
     if (!magasin) notFound();
+
+    const followStatus = magasin.id
+        ? await getFollowStatus(magasin.id)
+        : {following: false, followers_count: 0};
+    const supabase = await createClient();
+    const {
+        data: {user},
+    } = await supabase.auth.getUser();
 
     const all = await getMagasins({pays: magasin.pays});
     const similaires = all.filter((m) => m.id !== magasin.id).slice(0, 3);
@@ -53,7 +64,7 @@ export default async function MagasinPage({params}: { params: Params }) {
                     <h1 className="mt-3 font-display-soft text-white text-5xl sm:text-6xl lg:text-7xl tracking-tight leading-[0.95] max-w-4xl">
                         {magasin.nom}
                     </h1>
-                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                    <div className="mt-6 flex flex-wrap items-center gap-4">
                         {magasin.partenaire && (
                             <Badge className="bg-primary text-primary-foreground border-0">
                                 Partenaire
@@ -63,6 +74,15 @@ export default async function MagasinPage({params}: { params: Params }) {
                             <span className="text-white/85 text-sm">
                                 ★ {magasin.noteMoyenne.toFixed(1)} · {magasin.nbAvis} avis
                             </span>
+                        )}
+                        {magasin.id && (
+                            <FollowButton
+                                orgId={magasin.id}
+                                initialFollowing={followStatus.following}
+                                initialFollowersCount={followStatus.followers_count}
+                                isLoggedIn={!!user}
+                                tone="dark"
+                            />
                         )}
                     </div>
                 </div>
@@ -168,10 +188,11 @@ export default async function MagasinPage({params}: { params: Params }) {
                                     <p className="mt-3 text-sm leading-relaxed">
                                         {magasin.adresse}
                                     </p>
+
+                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                    magasin.adresse
+                                )}`}
                                     <a
-                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                            magasin.adresse
-                                        )}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="mt-3 inline-block text-xs uppercase tracking-wide border-b border-foreground pb-0.5 hover:text-accent hover:border-accent transition-colors"
