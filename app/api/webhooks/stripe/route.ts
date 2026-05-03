@@ -65,6 +65,9 @@ export async function POST(req: NextRequest) {
             case "checkout.session.completed":
                 await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
                 break;
+            case "charge.refunded":
+                await handleChargeRefunded(event.data.object as Stripe.Charge);
+                break;
             default:
                 console.log(`Unhandled webhook event type: ${event.type}`);
         }
@@ -224,5 +227,90 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         } catch (err) {
             console.error("Confirmation email failed:", err);
         }
+    }
+}
+
+async function handleChargeRefunded(charge: Stripe.Charge) {
+    // Le webhook charge.refunded est émis quand un refund se finalise.
+    // En direct charge, charge.refunds contient la liste complète des refunds.
+    // On itère et on s'assure que chaque refund est bien enregistré côté Sente.
+
+    const refunds = charge.refunds?.data ?? [];
+    if (refunds.length === 0) return;
+
+    const admin = createAdminClient();
+
+    for (const refund of refunds) {
+        // On regarde si on a déjà ce refund en DB (par son stripe_refund_id)
+        const { data: existing } = await admin
+            .from("payments")
+            .select("id")
+            .eq("stripe_refund_id", refund.id)
+            .maybeSingle();
+
+        if (existing) {
+            // Déjà enregistré (par la server action ou un précédent webhook)
+            continue;
+        }
+
+        // Récupère l'abonnement via metadata
+        const subId = refund.metadata?.sente_subscription_id;
+        if (!subId) {
+            console.warn(
+                `Refund ${refund.id} sans sente_subscription_id, skip`
+            );
+            continue;
+        }
+
+        const { data: sub } = await admin
+            .from("pecheur_subscriptions")
+            .select(
+                "id, paid_amount_cents, sente_commission_cents, refunded_amount_cents"
+            )
+            .eq("id", subId)
+            .single();
+
+        if (!sub) {
+            console.warn(`Subscription ${subId} introuvable pour refund ${refund.id}`);
+            continue;
+        }
+
+        // Calcul commission proportionnelle (même logique que la server action)
+        const commissionRefundCents =
+            sub.paid_amount_cents > 0
+                ? Math.round(
+                    (sub.sente_commission_cents * refund.amount) /
+                    sub.paid_amount_cents
+                )
+                : 0;
+
+        const reason =
+            refund.metadata?.sente_refund_reason ??
+            "Remboursement enregistré automatiquement (webhook)";
+
+        const { error: rpcError } = await admin.rpc("record_refund", {
+            p_subscription_id: subId,
+            p_refund_amount_cents: refund.amount,
+            p_commission_refund_cents: commissionRefundCents,
+            p_reason: reason,
+            p_stripe_refund_id: refund.id,
+            p_stripe_charge_id:
+                typeof refund.charge === "string"
+                    ? refund.charge
+                    : refund.charge?.id ?? null,
+        });
+
+        if (rpcError) {
+            console.error(
+                `record_refund failed via webhook for refund ${refund.id}:`,
+                rpcError
+            );
+            // On laisse remonter pour que Stripe retry
+            throw new Error(`record_refund failed: ${rpcError.message}`);
+        }
+
+        console.log(
+            `Refund ${refund.id} enregistré via webhook : ${refund.amount} cents`
+        );
     }
 }

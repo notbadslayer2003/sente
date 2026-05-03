@@ -105,6 +105,7 @@ export async function startCheckoutAction(
                 },
                 metadata: {
                     sente_subscription_id: sub.id,
+                    sente_org_id: sub.etang_id,
                 },
                 success_url: `${baseUrl}/payer/succes?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${baseUrl}/payer/${parsed.data.token}?cancelled=1`,

@@ -9,6 +9,7 @@ import {
     exportRegistreCsvAction,
 } from "@/app/actions/registre";
 import { createPaymentLinkAction } from "@/app/actions/payments";
+import { refundSubscriptionAction } from "@/app/actions/refunds";
 
 type Poste = {
     id: string;
@@ -58,6 +59,17 @@ const PERIOD_TYPES = [
     { value: "mensuel", label: "Mensuel" },
     { value: "autre", label: "Autre" },
 ];
+
+function canRefund(sub: Subscription): boolean {
+    // On peut refund si l'abonnement a été payé via Stripe en ligne ET
+    // qu'il reste un montant non remboursé.
+    // (On approxime via payment_method = 'online_card', le filtre fin
+    // côté server action vérifie stripe_payment_intent_id.)
+    if (sub.payment_method !== "online_card") return false;
+    if (sub.payment_status !== "paid" && sub.payment_status !== "partial")
+        return false;
+    return sub.paid_amount_cents > 0;
+}
 
 export function RegistreManager({
                                     etangId,
@@ -237,6 +249,7 @@ function SubscriptionRow({
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [refundOpen, setRefundOpen] = useState(false);
 
     const remaining = (sub.price_cents - sub.paid_amount_cents) / 100;
     const canSendLink =
@@ -340,6 +353,16 @@ function SubscriptionRow({
                             Envoyer lien
                         </button>
                     )}
+                    {canRefund(sub) && (
+                        <button
+                            type="button"
+                            onClick={() => setRefundOpen(true)}
+                            disabled={isPending}
+                            className="text-xs uppercase tracking-wide text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                        >
+                            Rembourser
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={onEdit}
@@ -357,11 +380,18 @@ function SubscriptionRow({
                         Supprimer
                     </button>
                 </div>
-                {success && (
-                    <p className="text-xs text-primary">{success}</p>
-                )}
-                {error && (
-                    <p className="text-xs text-destructive">{error}</p>
+                {success && <p className="text-xs text-primary">{success}</p>}
+                {error && <p className="text-xs text-destructive">{error}</p>}
+
+                {refundOpen && (
+                    <RefundForm
+                        sub={sub}
+                        onClose={() => setRefundOpen(false)}
+                        onSuccess={() => {
+                            setRefundOpen(false);
+                            window.location.reload();
+                        }}
+                    />
                 )}
             </div>
         </li>
@@ -721,5 +751,99 @@ function SelectField({
                 ))}
             </select>
         </label>
+    );
+}
+
+function RefundForm({
+                        sub,
+                        onClose,
+                        onSuccess,
+                    }: {
+    sub: Subscription;
+    onClose: () => void;
+    onSuccess: () => void;
+}) {
+    const [error, setError] = useState<string | null>(null);
+    const [isPending, startTransition] = useTransition();
+    const maxRefundEur = sub.paid_amount_cents / 100;
+
+    const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setError(null);
+        const fd = new FormData(e.currentTarget);
+        fd.set("subscription_id", sub.id);
+        if (
+            !confirm(
+                `Confirmer le remboursement ? Cette action est irréversible et la commission Sente sera également restituée au pêcheur.`
+            )
+        )
+            return;
+        startTransition(async () => {
+            const r = await refundSubscriptionAction(fd);
+            if (r.ok) onSuccess();
+            else setError(r.error);
+        });
+    };
+
+    return (
+        <form
+            onSubmit={onSubmit}
+            className="w-full mt-3 border border-destructive/30 bg-destructive/5 p-4 space-y-3"
+        >
+            <h4 className="text-xs uppercase tracking-[0.25em] text-destructive">
+                Rembourser {sub.pecheur_full_name}
+            </h4>
+
+            <label className="block">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Montant (€) — max {maxRefundEur.toFixed(2)} €
+        </span>
+                <input
+                    type="number"
+                    name="refund_amount_eur"
+                    step="0.01"
+                    min="0.01"
+                    max={maxRefundEur}
+                    defaultValue={maxRefundEur.toFixed(2)}
+                    required
+                    className="mt-1 w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-destructive"
+                />
+            </label>
+
+            <label className="block">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          Motif (10-1000 caractères) *
+        </span>
+                <textarea
+                    name="reason"
+                    required
+                    rows={2}
+                    minLength={10}
+                    maxLength={1000}
+                    placeholder="Ex: étang fermé pour travaux, le pêcheur ne peut pas honorer la saison..."
+                    className="mt-1 w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-destructive resize-y"
+                />
+            </label>
+
+            {error && <p className="text-xs text-destructive">{error}</p>}
+
+            <div className="flex items-center gap-3 pt-2">
+                <button
+                    type="submit"
+                    disabled={isPending}
+                    className="bg-destructive text-background hover:bg-destructive/90 transition-colors px-4 py-2 text-xs uppercase tracking-wide font-medium disabled:opacity-50"
+                >
+                    {isPending ? "Remboursement..." : "Confirmer le remboursement"}
+                </button>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={isPending}
+                    className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                    Annuler
+                </button>
+            </div>
+        </form>
     );
 }
