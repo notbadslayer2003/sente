@@ -8,6 +8,8 @@ import {LieuCard} from "@/components/sente/lieu-card";
 import { getFollowStatus } from "@/lib/dal/follow-status";
 import { FollowButton } from "@/components/sente/follow-button";
 import { createClient } from "@/lib/supabase/server";
+import { getUpcomingEvents } from "@/lib/dal/events";
+import { EventCard } from "@/components/sente/event-card";
 
 type Params = Promise<{ slug: string }>;
 
@@ -274,6 +276,9 @@ export default async function LieuPage({params}: { params: Params }) {
                 </div>
             </section>
 
+            {lieu.id && (
+                <UpcomingEventsSection orgId={lieu.id} />
+            )}
             {similaires.length > 0 && (
                 <section className="bg-secondary/40 py-16 sm:py-24">
                     <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
@@ -380,4 +385,37 @@ function hostnameOf(url: string): string {
     } catch {
         return url;
     }
+}
+
+async function UpcomingEventsSection({ orgId }: { orgId: string }) {
+    const events = await getUpcomingEvents({ orgId, limit: 3 });
+    if (events.length === 0) return null;
+
+    return (
+        <section className="bg-background py-16 sm:py-20 border-b border-border">
+            <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
+                <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
+                    <div>
+                        <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                            À venir
+                        </p>
+                        <h2 className="mt-3 font-display text-3xl sm:text-4xl tracking-tight">
+                            Événements
+                        </h2>
+                    </div>
+                    <Link
+                        href="/evenements"
+                        className="text-sm font-medium uppercase tracking-wide border-b border-foreground pb-1 hover:text-accent hover:border-accent transition-colors"
+                    >
+                        Tous les événements →
+                    </Link>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {events.map((e) => (
+                        <EventCard key={e.id} event={e} />
+                    ))}
+                </div>
+            </div>
+        </section>
+    );
 }
