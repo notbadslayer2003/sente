@@ -3,16 +3,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import {
-    detectImageMime,
-    isAllowedImageMime,
-} from "@/lib/utils/image-validate";
-
-const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4 Mo (limite Vercel Server Action)
+import { uploadToR2, deleteFromR2, generateR2Key } from "@/lib/storage/r2";
+import { validateImageMagicBytes } from "@/lib/utils/image-validate";
 
 export type ActionResult<T = undefined> =
     | { ok: true; data?: T }
     | { ok: false; error: string };
+
+const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4 Mo (limite Vercel Server Action)
 
 const UploadCoverSchema = z.object({
     org_id: z.string().uuid(),
@@ -24,34 +22,23 @@ export async function uploadOrgCoverAction(
     const parsed = UploadCoverSchema.safeParse({
         org_id: formData.get("org_id"),
     });
-    if (!parsed.success) {
-        return { ok: false, error: "Paramètres invalides" };
-    }
+    if (!parsed.success) return { ok: false, error: "Paramètres invalides" };
 
     const file = formData.get("file");
     if (!(file instanceof File)) {
-        return { ok: false, error: "Aucun fichier" };
+        return { ok: false, error: "Fichier manquant" };
     }
-
     if (file.size > MAX_FILE_SIZE) {
-        return { ok: false, error: "Fichier trop lourd (4 Mo max)" };
-    }
-
-    // Magic bytes
-    const buffer = await file.arrayBuffer();
-    const detectedMime = detectImageMime(buffer);
-    if (!isAllowedImageMime(detectedMime)) {
-        return { ok: false, error: "Format non supporté (JPEG, PNG, WebP uniquement)" };
+        return { ok: false, error: "Fichier trop volumineux (max 4 Mo)" };
     }
 
     const supabase = await createClient();
-
-    // Vérification membership (RLS double check côté serveur)
     const {
         data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Non authentifié" };
 
+    // L'utilisateur doit être membre de l'org
     const { data: membership } = await supabase
         .from("memberships")
         .select("role")
@@ -61,79 +48,82 @@ export async function uploadOrgCoverAction(
         .single();
     if (!membership) return { ok: false, error: "Accès refusé" };
 
-    // Path : {org_id}/cover-{timestamp}.{ext}
-    // Le timestamp casse le cache CDN entre uploads successifs.
-    const ext = mimeToExt(detectedMime!);
-    const path = `${parsed.data.org_id}/cover-${Date.now()}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-        .from("org-photos")
-        .upload(path, buffer, {
-            contentType: detectedMime!,
-            upsert: false,
-            cacheControl: "31536000", // 1 an, casse via le timestamp dans le path
-        });
-    if (uploadError) {
-        console.error("upload cover failed:", uploadError);
-        return { ok: false, error: "Échec de l'upload" };
+    // Validation magic bytes (anti spoof MIME)
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const validation = validateImageMagicBytes(buffer);
+    if (!validation.ok) {
+        return { ok: false, error: validation.error };
     }
 
-    const {
-        data: { publicUrl },
-    } = supabase.storage.from("org-photos").getPublicUrl(path);
-
-    // Update org.cover_image_url + suppression de l'ancienne cover si existante
-    const { data: oldOrg } = await supabase
+    // Récupère l'ancien cover pour le supprimer après upload réussi
+    const { data: org } = await supabase
         .from("organizations")
         .select("cover_image_url")
         .eq("id", parsed.data.org_id)
         .single();
+    const oldCoverUrl = org?.cover_image_url;
 
-    const { error: updateError } = await supabase
+    // Upload sur R2
+    const key = generateR2Key({
+        prefix: "orgs",
+        orgOrUserId: parsed.data.org_id,
+        subPath: "cover",
+        extension: validation.extension,
+    });
+
+    let url: string;
+    try {
+        const result = await uploadToR2(key, buffer, validation.mimeType);
+        url = result.url;
+    } catch (err) {
+        console.error("R2 upload failed:", err);
+        return { ok: false, error: "Erreur d'upload, réessaie." };
+    }
+
+    // Update l'URL en DB
+    const { error: dbError } = await supabase
         .from("organizations")
-        .update({ cover_image_url: publicUrl })
+        .update({ cover_image_url: url })
         .eq("id", parsed.data.org_id);
-    if (updateError) {
-        return { ok: false, error: "Photo uploadée mais échec mise à jour" };
+
+    if (dbError) {
+        // Si la DB plante après upload R2, on essaie de nettoyer R2
+        console.error("DB update failed after R2 upload:", dbError);
+        await deleteFromR2(url).catch(() => null);
+        return { ok: false, error: "Erreur d'enregistrement." };
     }
 
-    // Best effort : supprimer l'ancienne cover (ne pas bloquer si échec)
-    if (oldOrg?.cover_image_url) {
-        const oldPath = extractStoragePath(oldOrg.cover_image_url);
-        if (oldPath) {
-            await supabase.storage.from("org-photos").remove([oldPath]).catch(() => {});
-        }
+    // Cleanup ancien cover (best effort, on ne fait pas échouer si ça plante)
+    if (oldCoverUrl) {
+        await deleteFromR2(oldCoverUrl).catch(() => null);
     }
 
+    revalidatePath("/dashboard/[slug]/photos", "page");
     revalidatePath("/dashboard/[slug]", "page");
     revalidatePath("/lieux/[slug]", "page");
     revalidatePath("/magasins/[slug]", "page");
 
-    return { ok: true, data: { url: publicUrl } };
+    return { ok: true, data: { url } };
 }
 
-const AddGalleryPhotoSchema = z.object({
+const AddGallerySchema = z.object({
     org_id: z.string().uuid(),
 });
 
 export async function addOrgGalleryPhotoAction(
     formData: FormData
 ): Promise<ActionResult<{ url: string }>> {
-    const parsed = AddGalleryPhotoSchema.safeParse({
+    const parsed = AddGallerySchema.safeParse({
         org_id: formData.get("org_id"),
     });
     if (!parsed.success) return { ok: false, error: "Paramètres invalides" };
 
     const file = formData.get("file");
-    if (!(file instanceof File)) return { ok: false, error: "Aucun fichier" };
-    if (file.size > MAX_FILE_SIZE) {
-        return { ok: false, error: "Fichier trop lourd (4 Mo max)" };
+    if (!(file instanceof File)) {
+        return { ok: false, error: "Fichier manquant" };
     }
-
-    const buffer = await file.arrayBuffer();
-    const detectedMime = detectImageMime(buffer);
-    if (!isAllowedImageMime(detectedMime)) {
-        return { ok: false, error: "Format non supporté" };
+    if (file.size > MAX_FILE_SIZE) {
+        return { ok: false, error: "Fichier trop volumineux (max 4 Mo)" };
     }
 
     const supabase = await createClient();
@@ -151,48 +141,57 @@ export async function addOrgGalleryPhotoAction(
         .single();
     if (!membership) return { ok: false, error: "Accès refusé" };
 
-    // Vérif limite 15 photos
+    // Limite : max 15 photos par org
     const { data: org } = await supabase
         .from("organizations")
         .select("photos")
         .eq("id", parsed.data.org_id)
         .single();
     if (!org) return { ok: false, error: "Organisation introuvable" };
-    const currentPhotos = org.photos ?? [];
-    if (currentPhotos.length >= 15) {
-        return { ok: false, error: "Limite de 15 photos atteinte" };
+    if ((org.photos?.length ?? 0) >= 15) {
+        return { ok: false, error: "Maximum 15 photos atteint." };
     }
 
-    const ext = mimeToExt(detectedMime!);
-    const path = `${parsed.data.org_id}/gallery/${crypto.randomUUID()}.${ext}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const validation = validateImageMagicBytes(buffer);
+    if (!validation.ok) return { ok: false, error: validation.error };
 
-    const { error: uploadError } = await supabase.storage
-        .from("org-photos")
-        .upload(path, buffer, {
-            contentType: detectedMime!,
-            upsert: false,
-            cacheControl: "31536000",
-        });
-    if (uploadError) return { ok: false, error: "Échec de l'upload" };
+    const key = generateR2Key({
+        prefix: "orgs",
+        orgOrUserId: parsed.data.org_id,
+        subPath: "gallery",
+        extension: validation.extension,
+    });
 
-    const {
-        data: { publicUrl },
-    } = supabase.storage.from("org-photos").getPublicUrl(path);
+    let url: string;
+    try {
+        const result = await uploadToR2(key, buffer, validation.mimeType);
+        url = result.url;
+    } catch (err) {
+        console.error("R2 upload failed:", err);
+        return { ok: false, error: "Erreur d'upload." };
+    }
 
-    const { error: updateError } = await supabase
+    const newPhotos = [...(org.photos ?? []), url];
+    const { error: dbError } = await supabase
         .from("organizations")
-        .update({ photos: [...currentPhotos, publicUrl] })
+        .update({ photos: newPhotos })
         .eq("id", parsed.data.org_id);
-    if (updateError) return { ok: false, error: "Photo uploadée mais échec mise à jour" };
 
-    revalidatePath("/dashboard/[slug]", "page");
+    if (dbError) {
+        console.error("DB update failed after R2 upload:", dbError);
+        await deleteFromR2(url).catch(() => null);
+        return { ok: false, error: "Erreur d'enregistrement." };
+    }
+
+    revalidatePath("/dashboard/[slug]/photos", "page");
     revalidatePath("/lieux/[slug]", "page");
     revalidatePath("/magasins/[slug]", "page");
 
-    return { ok: true, data: { url: publicUrl } };
+    return { ok: true, data: { url } };
 }
 
-const RemoveGalleryPhotoSchema = z.object({
+const RemoveGallerySchema = z.object({
     org_id: z.string().uuid(),
     photo_url: z.string().url(),
 });
@@ -200,7 +199,7 @@ const RemoveGalleryPhotoSchema = z.object({
 export async function removeOrgGalleryPhotoAction(
     formData: FormData
 ): Promise<ActionResult> {
-    const parsed = RemoveGalleryPhotoSchema.safeParse({
+    const parsed = RemoveGallerySchema.safeParse({
         org_id: formData.get("org_id"),
         photo_url: formData.get("photo_url"),
     });
@@ -228,33 +227,29 @@ export async function removeOrgGalleryPhotoAction(
         .single();
     if (!org) return { ok: false, error: "Organisation introuvable" };
 
-    const updated = (org.photos ?? []).filter((p: string) => p !== parsed.data.photo_url);
-
-    const { error: updateError } = await supabase
-        .from("organizations")
-        .update({ photos: updated })
-        .eq("id", parsed.data.org_id);
-    if (updateError) return { ok: false, error: "Échec mise à jour" };
-
-    // Best effort : supprimer du storage
-    const path = extractStoragePath(parsed.data.photo_url);
-    if (path) {
-        await supabase.storage.from("org-photos").remove([path]).catch(() => {});
+    const newPhotos = (org.photos ?? []).filter(
+        (u) => u !== parsed.data.photo_url
+    );
+    if (newPhotos.length === (org.photos?.length ?? 0)) {
+        return { ok: false, error: "Photo introuvable dans la galerie." };
     }
 
-    revalidatePath("/dashboard/[slug]", "page");
+    const { error: dbError } = await supabase
+        .from("organizations")
+        .update({ photos: newPhotos })
+        .eq("id", parsed.data.org_id);
+
+    if (dbError) {
+        console.error("DB update failed:", dbError);
+        return { ok: false, error: "Erreur lors du retrait." };
+    }
+
+    // Suppression R2 best-effort
+    await deleteFromR2(parsed.data.photo_url).catch(() => null);
+
+    revalidatePath("/dashboard/[slug]/photos", "page");
+    revalidatePath("/lieux/[slug]", "page");
+    revalidatePath("/magasins/[slug]", "page");
+
     return { ok: true };
-}
-
-// Helpers
-function mimeToExt(mime: string): string {
-    if (mime === "image/jpeg") return "jpg";
-    if (mime === "image/png") return "png";
-    if (mime === "image/webp") return "webp";
-    return "bin";
-}
-
-function extractStoragePath(publicUrl: string): string | null {
-    const match = publicUrl.match(/\/storage\/v1\/object\/public\/org-photos\/(.+)$/);
-    return match?.[1] ?? null;
 }
