@@ -15,7 +15,7 @@ export default async function ParametresPage() {
     const { data: profile } = await supabase
         .from("profiles")
         .select(
-            "full_name, bio, city, country, especes_pref, marketing_opt_in"
+            "full_name, phone, bio, city, country, especes_pref, marketing_opt_in"
         )
         .eq("id", user.id)
         .single();
@@ -35,6 +35,7 @@ export default async function ParametresPage() {
                 <ProfileSettingsForm
                     profile={{
                         full_name: profile?.full_name ?? "",
+                        phone: profile?.phone ?? "",
                         bio: profile?.bio ?? "",
                         city: profile?.city ?? "",
                         country: profile?.country ?? "",

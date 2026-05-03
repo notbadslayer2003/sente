@@ -31,6 +31,11 @@ const UpdateProfileSchema = z.object({
         .string()
         .min(2, "Nom trop court")
         .max(100, "Nom trop long"),
+    phone: z
+        .string()
+        .max(50, "Numéro trop long")
+        .optional()
+        .transform((v) => (v && v.trim().length > 0 ? v.trim() : null)),
     bio: z
         .string()
         .max(500, "Bio trop longue (500 caractères max)")
@@ -59,6 +64,7 @@ export async function updateProfileAction(
 
     const raw = {
         full_name: formData.get("full_name"),
+        phone: formData.get("phone") || undefined,
         bio: formData.get("bio") || undefined,
         city: formData.get("city") || undefined,
         country: formData.get("country") || "",
@@ -89,6 +95,7 @@ export async function updateProfileAction(
             .from("profiles")
             .update({
                 full_name: parsed.data.full_name,
+                phone: parsed.data.phone,
                 bio: parsed.data.bio,
                 city: parsed.data.city,
                 country: parsed.data.country,
@@ -101,6 +108,7 @@ export async function updateProfileAction(
             .from("profiles")
             .update({
                 full_name: parsed.data.full_name,
+                phone: parsed.data.phone,
                 bio: parsed.data.bio,
                 city: parsed.data.city,
                 country: parsed.data.country,

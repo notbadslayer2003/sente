@@ -8,6 +8,7 @@ import { MultiSelectChips } from "@/components/sente/multi-select-chips";
 
 type Profile = {
     full_name: string;
+    phone: string;
     bio: string;
     city: string;
     country: string;
@@ -68,6 +69,14 @@ export function ProfileSettingsForm({ profile }: { profile: Profile }) {
                     ]}
                 />
             </div>
+
+            <Field
+                label="Téléphone"
+                name="phone"
+                defaultValue={profile.phone}
+                hint="Pour pré-remplir tes inscriptions aux événements. Jamais affiché publiquement."
+                error={fieldErrors.phone}
+            />
 
             <Field
                 label="Ville"
