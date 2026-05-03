@@ -36,6 +36,7 @@ export function DashboardSidebar({
             ]),
         { href: `${base}/posts`, label: "Posts & événements", disabled: true },
         { href: `${base}/equipe`, label: "Équipe" },
+        { href: `${base}/paiements`, label: "Paiements" },
         { href: `${base}/parametres`, label: "Paramètres", disabled: true },
     ];
 
