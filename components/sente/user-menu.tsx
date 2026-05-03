@@ -72,6 +72,12 @@ export function UserMenu({
                         >
                             Mes suivis
                         </MenuLink>
+                        <MenuLink
+                            href="/profil/inscriptions"
+                            onClick={() => setOpen(false)}
+                        >
+                            Mes inscriptions
+                        </MenuLink>
                         <MenuLink href="/profil/parametres" onClick={() => setOpen(false)}>
                             Paramètres
                         </MenuLink>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getFeedPosts, getFeedPostsFollowing, getMyOrgs } from "@/lib/dal/posts";
+import { getHybridFeed, getHybridFeedFollowing } from "@/lib/dal/feed-hybrid";
+import { getMyOrgs } from "@/lib/dal/posts";
 import { FeedClient } from "@/components/sente/feed-client";
 
 type SearchParams = Promise<{ tab?: string }>;
@@ -19,15 +20,14 @@ export default async function FeedPage({
         data: { user },
     } = await supabase.auth.getUser();
 
-    // Suivi exige d'être connecté
     if (tab === "following" && !user) {
         redirect("/login?next=/feed");
     }
 
-    const [posts, myOrgs] = await Promise.all([
+    const [items, myOrgs] = await Promise.all([
         tab === "following" && user
-            ? getFeedPostsFollowing({ user_id: user.id, limit: 20 })
-            : getFeedPosts({ limit: 20 }),
+            ? getHybridFeedFollowing({ user_id: user.id, limit: 30 })
+            : getHybridFeed({ limit: 30 }),
         user ? getMyOrgs() : Promise.resolve([]),
     ]);
 
@@ -44,7 +44,7 @@ export default async function FeedPage({
                 </div>
 
                 <FeedClient
-                    initialPosts={posts}
+                    initialItems={items}
                     activeTab={tab}
                     isLoggedIn={!!user}
                     currentUserId={user?.id ?? null}

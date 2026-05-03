@@ -3,20 +3,21 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { FeedPost } from "@/lib/dal/posts";
+import type { FeedItem } from "@/lib/dal/feed-hybrid";
 import { PostCard } from "@/components/sente/post-card";
+import { EventCard } from "@/components/sente/event-card";
 import { PostComposer } from "@/components/sente/post-composer";
 
 type MyOrg = { id: string; name: string; slug: string; org_type: string };
 
 export function FeedClient({
-                               initialPosts,
+                               initialItems,
                                activeTab,
                                isLoggedIn,
                                currentUserId,
                                myOrgs,
                            }: {
-    initialPosts: FeedPost[];
+    initialItems: FeedItem[];
     activeTab: "discover" | "following";
     isLoggedIn: boolean;
     currentUserId: string | null;
@@ -27,7 +28,6 @@ export function FeedClient({
 
     return (
         <div className="space-y-6">
-            {/* Tabs */}
             <div className="flex items-center gap-6 border-b border-border">
                 <TabLink
                     label="Découverte"
@@ -43,7 +43,6 @@ export function FeedClient({
                 )}
             </div>
 
-            {/* Composer inline pour les users loggés */}
             {isLoggedIn && (
                 <button
                     type="button"
@@ -54,35 +53,34 @@ export function FeedClient({
                 </button>
             )}
 
-            {/* Posts */}
-            {initialPosts.length === 0 ? (
+            {initialItems.length === 0 ? (
                 <div className="border border-dashed border-border p-12 text-center">
                     <p className="text-sm text-muted-foreground">
                         {activeTab === "following"
                             ? "Tu ne suis encore aucun étang. Va sur une fiche pour suivre."
-                            : "Aucun post pour le moment. Sois le premier."}
+                            : "Aucun contenu pour le moment. Sois le premier."}
                     </p>
                 </div>
             ) : (
                 <ul className="space-y-6">
-                    {initialPosts.map((p) => (
-                        <li key={p.id}>
-                            <PostCard post={p} currentUserId={currentUserId} initialLiked={p.is_liked_by_me} />
+                    {initialItems.map((item) => (
+                        <li
+                            key={item.kind === "post" ? `p-${item.post.id}` : `e-${item.event.id}`}
+                        >
+                            {item.kind === "post" ? (
+                                <PostCard
+                                    post={item.post}
+                                    currentUserId={currentUserId}
+                                    initialLiked={item.post.is_liked_by_me}
+                                />
+                            ) : (
+                                <EventCard event={item.event} />
+                            )}
                         </li>
                     ))}
                 </ul>
             )}
 
-            {/* CTA en bas pour pagination future */}
-            {initialPosts.length >= 20 && (
-                <div className="text-center pt-6">
-                    <p className="text-xs text-muted-foreground">
-                        Pagination en scroll infini prochainement.
-                    </p>
-                </div>
-            )}
-
-            {/* Bouton flottant + modal composer */}
             {isLoggedIn && (
                 <>
                     <button

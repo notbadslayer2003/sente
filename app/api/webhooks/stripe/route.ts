@@ -5,6 +5,7 @@ import { getStripeClient } from "@/lib/stripe/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getResendClient } from "@/lib/email/client";
 import { buildPaymentConfirmationEmail } from "@/lib/email/templates/payment-confirmation";
+import { buildEventRegistrationConfirmEmail } from "@/lib/email/templates/event-registration-confirm";
 
 export const runtime = "nodejs";
 
@@ -118,19 +119,15 @@ async function handleCapabilityUpdated(capability: Stripe.Capability) {
     await handleAccountUpdated(account);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Checkout completed : route selon sente_kind (event_registration | subscription)
+// ─────────────────────────────────────────────────────────────────────────────
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     if (session.payment_status !== "paid") {
         console.log(`Checkout session ${session.id} not paid yet, skipping`);
         return;
     }
 
-    const subscriptionId = session.metadata?.sente_subscription_id;
-    if (!subscriptionId) {
-        throw new Error(`No sente_subscription_id in session ${session.id}`);
-    }
-
-    // En direct charge, le PaymentIntent vit sur le compte connecté.
-    // On retrouve l'org via la metadata pour récupérer son stripe_account_id.
     const orgId = session.metadata?.sente_org_id;
     if (!orgId) {
         throw new Error(`No sente_org_id in session ${session.id}`);
@@ -154,7 +151,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
             : session.payment_intent?.id;
     if (!piId) throw new Error(`No payment_intent on session ${session.id}`);
 
-    // Précise le compte connecté pour retrieve
+    // En direct charge, le PI vit sur le compte connecté
     const pi = await stripe.paymentIntents.retrieve(
         piId,
         { expand: ["latest_charge"] },
@@ -162,24 +159,145 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     );
 
     const amountCents = pi.amount_received ?? pi.amount;
+    const applicationFee = pi.application_fee_amount ?? 0;
+    const charge = pi.latest_charge as Stripe.Charge | null;
+    const chargeId = typeof charge === "object" && charge ? charge.id : null;
+
+    // Dispatch selon kind
+    const kind = session.metadata?.sente_kind;
+
+    if (kind === "event_registration") {
+        await handleEventRegistrationPaid({
+            session,
+            amountCents,
+            applicationFee,
+            piId: pi.id,
+            chargeId,
+            admin,
+        });
+        return;
+    }
+
+    // Cas par défaut : abonnement pêcheur étang (legacy, sans sente_kind)
+    await handleSubscriptionPaid({
+        session,
+        amountCents,
+        applicationFee,
+        piId: pi.id,
+        chargeId,
+        admin,
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper : event_registration paid
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleEventRegistrationPaid(args: {
+    session: Stripe.Checkout.Session;
+    amountCents: number;
+    applicationFee: number;
+    piId: string;
+    chargeId: string | null;
+    admin: ReturnType<typeof createAdminClient>;
+}) {
+    const { session, amountCents, applicationFee, piId, chargeId, admin } = args;
+
+    const registrationId = session.metadata?.sente_registration_id;
+    if (!registrationId) {
+        throw new Error(`No sente_registration_id in event session ${session.id}`);
+    }
+
+    const { error: rpcError } = await admin.rpc("mark_event_registration_paid", {
+        p_registration_id: registrationId,
+        p_amount_cents: amountCents,
+        p_commission_cents: applicationFee,
+        p_stripe_payment_intent_id: piId,
+        p_stripe_charge_id: chargeId,
+    });
+    if (rpcError) {
+        throw new Error(`mark_event_registration_paid failed: ${rpcError.message}`);
+    }
+
+    console.log(
+        `Event registration ${registrationId} marked paid: ${amountCents} cents, commission ${applicationFee} cents`
+    );
+
+    // Email confirmation au pêcheur
+    const { data: reg } = await admin
+        .from("event_registrations")
+        .select(
+            `full_name, email, payment_method, paid_amount_cents,
+             event:events!event_id(id, title, starts_at, location_text,
+                organization:organizations!organization_id(name))`
+        )
+        .eq("id", registrationId)
+        .single();
+
+    if (!reg) return;
+
+    const event = Array.isArray(reg.event) ? reg.event[0] : reg.event;
+    if (!event) return;
+    const orgRel = Array.isArray(event.organization)
+        ? event.organization[0]
+        : event.organization;
+    if (!orgRel) return;
+
+    try {
+        const { text, html } = buildEventRegistrationConfirmEmail({
+            fullName: reg.full_name as string,
+            eventTitle: event.title as string,
+            orgName: orgRel.name as string,
+            startsAt: event.starts_at as string,
+            locationText: (event.location_text as string) ?? null,
+            paymentMethod: reg.payment_method as string,
+            paidAmountEur: (reg.paid_amount_cents as number) / 100,
+        });
+        const resend = getResendClient();
+        await resend.emails.send({
+            from: "Sente <onboarding@resend.dev>",
+            to: [reg.email as string],
+            subject: `Inscription confirmée — ${event.title}`,
+            text,
+            html,
+        });
+    } catch (err) {
+        console.error("Event registration email failed:", err);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper : subscription paid (legacy abonnements pêcheurs étang)
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleSubscriptionPaid(args: {
+    session: Stripe.Checkout.Session;
+    amountCents: number;
+    applicationFee: number;
+    piId: string;
+    chargeId: string | null;
+    admin: ReturnType<typeof createAdminClient>;
+}) {
+    const { session, amountCents, applicationFee, piId, chargeId, admin } = args;
+
+    const subscriptionId = session.metadata?.sente_subscription_id;
+    if (!subscriptionId) {
+        throw new Error(`No sente_subscription_id in session ${session.id}`);
+    }
+
     const commissionCents =
         parseInt(session.metadata?.sente_commission_cents ?? "0", 10) ||
-        pi.application_fee_amount ||
+        applicationFee ||
         0;
     const commissionRateBps = parseInt(
         session.metadata?.sente_commission_rate_bps ?? "300",
         10
     );
 
-    const charge = pi.latest_charge as Stripe.Charge | null;
-    const chargeId = typeof charge === "object" && charge ? charge.id : null;
-
     const { error: rpcError } = await admin.rpc("mark_subscription_paid", {
         p_subscription_id: subscriptionId,
         p_amount_cents: amountCents,
         p_commission_cents: commissionCents,
         p_commission_rate_bps: commissionRateBps,
-        p_stripe_payment_intent_id: pi.id,
+        p_stripe_payment_intent_id: piId,
         p_stripe_charge_id: chargeId,
     });
 
@@ -230,87 +348,146 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Charge refunded : route selon sente_kind aussi
+// ─────────────────────────────────────────────────────────────────────────────
 async function handleChargeRefunded(charge: Stripe.Charge) {
-    // Le webhook charge.refunded est émis quand un refund se finalise.
-    // En direct charge, charge.refunds contient la liste complète des refunds.
-    // On itère et on s'assure que chaque refund est bien enregistré côté Sente.
-
     const refunds = charge.refunds?.data ?? [];
     if (refunds.length === 0) return;
 
     const admin = createAdminClient();
 
     for (const refund of refunds) {
-        // On regarde si on a déjà ce refund en DB (par son stripe_refund_id)
+        // Skip si déjà en DB
         const { data: existing } = await admin
             .from("payments")
             .select("id")
             .eq("stripe_refund_id", refund.id)
             .maybeSingle();
+        if (existing) continue;
 
-        if (existing) {
-            // Déjà enregistré (par la server action ou un précédent webhook)
+        const kind = refund.metadata?.sente_kind;
+
+        if (kind === "event_refund") {
+            await rattrapeEventRefund(refund, admin);
             continue;
         }
 
-        // Récupère l'abonnement via metadata
-        const subId = refund.metadata?.sente_subscription_id;
-        if (!subId) {
-            console.warn(
-                `Refund ${refund.id} sans sente_subscription_id, skip`
-            );
-            continue;
-        }
-
-        const { data: sub } = await admin
-            .from("pecheur_subscriptions")
-            .select(
-                "id, paid_amount_cents, sente_commission_cents, refunded_amount_cents"
-            )
-            .eq("id", subId)
-            .single();
-
-        if (!sub) {
-            console.warn(`Subscription ${subId} introuvable pour refund ${refund.id}`);
-            continue;
-        }
-
-        // Calcul commission proportionnelle (même logique que la server action)
-        const commissionRefundCents =
-            sub.paid_amount_cents > 0
-                ? Math.round(
-                    (sub.sente_commission_cents * refund.amount) /
-                    sub.paid_amount_cents
-                )
-                : 0;
-
-        const reason =
-            refund.metadata?.sente_refund_reason ??
-            "Remboursement enregistré automatiquement (webhook)";
-
-        const { error: rpcError } = await admin.rpc("record_refund", {
-            p_subscription_id: subId,
-            p_refund_amount_cents: refund.amount,
-            p_commission_refund_cents: commissionRefundCents,
-            p_reason: reason,
-            p_stripe_refund_id: refund.id,
-            p_stripe_charge_id:
-                typeof refund.charge === "string"
-                    ? refund.charge
-                    : refund.charge?.id ?? null,
-        });
-
-        if (rpcError) {
-            console.error(
-                `record_refund failed via webhook for refund ${refund.id}:`,
-                rpcError
-            );
-            // On laisse remonter pour que Stripe retry
-            throw new Error(`record_refund failed: ${rpcError.message}`);
-        }
-
-        console.log(
-            `Refund ${refund.id} enregistré via webhook : ${refund.amount} cents`
-        );
+        // Fallback : refund sur abonnement pêcheur (legacy, sans kind)
+        await rattrapeSubscriptionRefund(refund, admin);
     }
+}
+
+async function rattrapeEventRefund(
+    refund: Stripe.Refund,
+    admin: ReturnType<typeof createAdminClient>
+) {
+    const regId = refund.metadata?.sente_registration_id;
+    if (!regId) {
+        console.warn(`Event refund ${refund.id} sans sente_registration_id, skip`);
+        return;
+    }
+
+    const { data: reg } = await admin
+        .from("event_registrations")
+        .select("id, paid_amount_cents, sente_commission_cents, refunded_amount_cents")
+        .eq("id", regId)
+        .single();
+
+    if (!reg) {
+        console.warn(`Registration ${regId} introuvable pour refund ${refund.id}`);
+        return;
+    }
+
+    const commissionRefundCents =
+        (reg.paid_amount_cents as number) > 0
+            ? Math.round(
+                ((reg.sente_commission_cents as number) * refund.amount) /
+                (reg.paid_amount_cents as number)
+            )
+            : 0;
+
+    const reason =
+        refund.metadata?.sente_refund_reason ??
+        "Remboursement enregistré automatiquement (webhook)";
+
+    const { error: rpcError } = await admin.rpc("record_event_refund", {
+        p_registration_id: regId,
+        p_refund_amount_cents: refund.amount,
+        p_commission_refund_cents: commissionRefundCents,
+        p_reason: reason,
+        p_stripe_refund_id: refund.id,
+        p_stripe_charge_id:
+            typeof refund.charge === "string"
+                ? refund.charge
+                : refund.charge?.id ?? null,
+    });
+
+    if (rpcError) {
+        console.error(
+            `record_event_refund failed for refund ${refund.id}:`,
+            rpcError
+        );
+        throw new Error(`record_event_refund failed: ${rpcError.message}`);
+    }
+
+    console.log(`Event refund ${refund.id} enregistré : ${refund.amount} cents`);
+}
+
+async function rattrapeSubscriptionRefund(
+    refund: Stripe.Refund,
+    admin: ReturnType<typeof createAdminClient>
+) {
+    const subId = refund.metadata?.sente_subscription_id;
+    if (!subId) {
+        console.warn(`Refund ${refund.id} sans sente_subscription_id, skip`);
+        return;
+    }
+
+    const { data: sub } = await admin
+        .from("pecheur_subscriptions")
+        .select(
+            "id, paid_amount_cents, sente_commission_cents, refunded_amount_cents"
+        )
+        .eq("id", subId)
+        .single();
+
+    if (!sub) {
+        console.warn(`Subscription ${subId} introuvable pour refund ${refund.id}`);
+        return;
+    }
+
+    const commissionRefundCents =
+        (sub.paid_amount_cents as number) > 0
+            ? Math.round(
+                ((sub.sente_commission_cents as number) * refund.amount) /
+                (sub.paid_amount_cents as number)
+            )
+            : 0;
+
+    const reason =
+        refund.metadata?.sente_refund_reason ??
+        "Remboursement enregistré automatiquement (webhook)";
+
+    const { error: rpcError } = await admin.rpc("record_refund", {
+        p_subscription_id: subId,
+        p_refund_amount_cents: refund.amount,
+        p_commission_refund_cents: commissionRefundCents,
+        p_reason: reason,
+        p_stripe_refund_id: refund.id,
+        p_stripe_charge_id:
+            typeof refund.charge === "string"
+                ? refund.charge
+                : refund.charge?.id ?? null,
+    });
+
+    if (rpcError) {
+        console.error(
+            `record_refund failed via webhook for refund ${refund.id}:`,
+            rpcError
+        );
+        throw new Error(`record_refund failed: ${rpcError.message}`);
+    }
+
+    console.log(`Subscription refund ${refund.id} enregistré : ${refund.amount} cents`);
 }
