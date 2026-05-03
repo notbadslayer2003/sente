@@ -12,6 +12,7 @@ import {
     hideCommentAction,
     toggleCommentLikeAction,
 } from "@/app/actions/post-engagement";
+import {ReportButton} from "@/components/sente/report-button";
 
 export function CommentsSection({
                                     postId,
@@ -222,6 +223,13 @@ function CommentItem({
                                 >
                                     Masquer
                                 </button>
+                            )}
+                            {!comment.is_my_comment && isLoggedIn && (
+                                <ReportButton
+                                    targetType="comment"
+                                    targetId={comment.id}
+                                    isLoggedIn={isLoggedIn}
+                                />
                             )}
                         </div>
                     )}

@@ -2,12 +2,15 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { UserMenu } from "@/components/sente/user-menu";
 import {GlobalSearch} from "@/components/sente/global-search";
+import {NotificationsBell} from "@/components/sente/notification-bell";
+import {getUnreadNotificationCount} from "@/lib/dal/notifications";
 
 export async function SiteHeader() {
     const supabase = await createClient();
     const {
         data: { user },
     } = await supabase.auth.getUser();
+    const unreadCount = user ? await getUnreadNotificationCount() : 0;
 
     let displayName: string | null = null;
     if (user) {
@@ -42,13 +45,14 @@ export async function SiteHeader() {
                         Magasins
                     </Link>
                     <Link
-                        href="/partenaires"
+                        href="/feed"
                         className="hidden md:inline-flex text-foreground hover:text-accent transition-colors uppercase tracking-wide text-xs"
                     >
-                        Pros
+                        Feed
                     </Link>
 
                     <GlobalSearch/>
+                    {user && <NotificationsBell unreadCount={unreadCount} />}
                     {user ? (
                         <UserMenu displayName={displayName} email={user.email ?? ""} />
                     ) : (

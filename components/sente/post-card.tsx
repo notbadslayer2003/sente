@@ -9,6 +9,7 @@ import { deletePostAction } from "@/app/actions/posts";
 import { PostActionsBar } from "@/components/sente/post-actions-bar";
 import { PostMetaRow } from "@/components/sente/post-meta-row";
 import {FollowButton} from "@/components/sente/follow-button";
+import {ReportButton} from "@/components/sente/report-button";
 
 export function PostCard({
                              post,
@@ -80,7 +81,7 @@ export function PostCard({
                     />
                 )}
 
-                {isMyPost && (
+                {(isMyPost || currentUserId !== null) && (
                     <div className="relative">
                         <button
                             type="button"
@@ -95,14 +96,25 @@ export function PostCard({
                         </button>
                         {menuOpen && (
                             <div className="absolute right-0 top-full mt-1 z-10 bg-background border border-border min-w-[140px]">
-                                <button
-                                    type="button"
-                                    onClick={onDelete}
-                                    disabled={isPending}
-                                    className="w-full text-left px-4 py-2 text-xs uppercase tracking-wide text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
-                                >
-                                    Supprimer
-                                </button>
+                                {!isMyPost && (
+                                    <div className="px-2 py-1">
+                                        <ReportButton
+                                            targetType="post"
+                                            targetId={post.id}
+                                            isLoggedIn={currentUserId !== null}
+                                        />
+                                    </div>
+                                )}
+                                {isMyPost && (
+                                    <button
+                                        type="button"
+                                        onClick={onDelete}
+                                        disabled={isPending}
+                                        className="w-full text-left px-4 py-2 text-xs uppercase tracking-wide text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                                    >
+                                        Supprimer
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

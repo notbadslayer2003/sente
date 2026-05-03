@@ -48,6 +48,14 @@ export default async function AdminLayout({
                                                 Organisations
                                             </Link>
                                         </li>
+                                        <li>
+                                            <Link
+                                                href="/admin/reports"
+                                                className="block px-3 py-2 text-sm uppercase tracking-wide hover:text-accent hover:bg-accent/5 transition-colors"
+                                            >
+                                                Signalements
+                                            </Link>
+                                        </li>
                                     </ul>
                                 </nav>
                             </div>
