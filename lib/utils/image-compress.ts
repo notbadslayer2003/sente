@@ -1,43 +1,43 @@
 /**
- * Compresse une image côté client avant upload.
- * Resize à maxWidth/maxHeight, output JPEG qualité 0.85.
- * Aucune dépendance, utilise Canvas API natif.
+ * Compresse et redimensionne une image côté client via Canvas.
+ * Retourne un nouveau File en JPEG.
  */
 export async function compressImage(
     file: File,
-    options: {
-        maxWidth: number;
-        maxHeight: number;
-        quality?: number;
-    }
-): Promise<Blob> {
-    const { maxWidth, maxHeight, quality = 0.85 } = options;
-
-    const dataUrl = await readAsDataUrl(file);
-    const img = await loadImage(dataUrl);
-
-    let { width, height } = img;
-    const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
-    width = Math.round(width * ratio);
-    height = Math.round(height * ratio);
-
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas non supporté");
-
-    ctx.drawImage(img, 0, 0, width, height);
-
-    return await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-            (blob) => {
-                if (blob) resolve(blob);
-                else reject(new Error("Échec compression"));
-            },
-            "image/jpeg",
-            quality
-        );
+    opts: { maxWidth: number; quality: number }
+): Promise<File> {
+    return new Promise((resolve, reject) => {
+        const img = new window.Image();
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const ratio = Math.min(opts.maxWidth / img.width, 1);
+            canvas.width = Math.round(img.width * ratio);
+            canvas.height = Math.round(img.height * ratio);
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+                reject(new Error("Canvas non supporté"));
+                return;
+            }
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(
+                (blob) => {
+                    if (!blob) {
+                        reject(new Error("Compression échouée"));
+                        return;
+                    }
+                    resolve(
+                        new File([blob], file.name.replace(/\.\w+$/, ".jpg"), {
+                            type: "image/jpeg",
+                            lastModified: Date.now(),
+                        })
+                    );
+                },
+                "image/jpeg",
+                opts.quality
+            );
+        };
+        img.onerror = () => reject(new Error("Image illisible"));
+        img.src = URL.createObjectURL(file);
     });
 }
 

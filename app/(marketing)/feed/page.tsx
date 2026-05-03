@@ -1,36 +1,55 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getFeedPosts, getFeedPostsFollowing, getMyOrgs } from "@/lib/dal/posts";
+import { FeedClient } from "@/components/sente/feed-client";
 
-export const metadata = { title: "Fil communauté — Sente" };
+type SearchParams = Promise<{ tab?: string }>;
 
-export default function FeedPage() {
+export default async function FeedPage({
+                                           searchParams,
+                                       }: {
+    searchParams: SearchParams;
+}) {
+    const sp = await searchParams;
+    const tab: "discover" | "following" =
+        sp.tab === "following" ? "following" : "discover";
+
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    // Suivi exige d'être connecté
+    if (tab === "following" && !user) {
+        redirect("/login?next=/feed");
+    }
+
+    const [posts, myOrgs] = await Promise.all([
+        tab === "following" && user
+            ? getFeedPostsFollowing({ user_id: user.id, limit: 20 })
+            : getFeedPosts({ limit: 20 }),
+        user ? getMyOrgs() : Promise.resolve([]),
+    ]);
+
     return (
-        <section className="bg-background min-h-screen pt-32 pb-16 flex items-center">
-            <div className="mx-auto max-w-2xl px-6 sm:px-8 lg:px-12 text-center">
-                <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
-                    Bientôt disponible
-                </p>
-                <h1 className="mt-4 font-display-soft text-5xl sm:text-6xl tracking-tight leading-[0.95]">
-                    Le fil communauté.
-                </h1>
-                <p className="mt-8 text-base sm:text-lg text-muted-foreground leading-relaxed">
-                    Posts d&apos;étangs, prises des pêcheurs, événements à venir, conseils
-                    matos. Le fil ouvrira en même temps que les comptes pêcheurs, dans les
-                    prochaines semaines.
-                </p>
-                <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-                    <Link
-                        href="/lieux"
-                        className="inline-flex items-center justify-center bg-accent text-accent-foreground hover:bg-accent/90 transition-colors px-7 py-3.5 text-sm font-medium tracking-wide uppercase"
-                    >
-                        Voir les étangs
-                    </Link>
-                    <Link
-                        href="/signup"
-                        className="inline-flex items-center justify-center border border-foreground hover:bg-foreground hover:text-background transition-colors px-7 py-3.5 text-sm font-medium tracking-wide uppercase"
-                    >
-                        Être prévenu
-                    </Link>
+        <section className="bg-background min-h-screen pt-24 pb-16">
+            <div className="mx-auto max-w-2xl px-6 sm:px-8">
+                <div className="mb-8">
+                    <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                        Communauté
+                    </p>
+                    <h1 className="mt-3 font-display-soft text-5xl tracking-tight leading-[0.95]">
+                        Le fil.
+                    </h1>
                 </div>
+
+                <FeedClient
+                    initialPosts={posts}
+                    activeTab={tab}
+                    isLoggedIn={!!user}
+                    currentUserId={user?.id ?? null}
+                    myOrgs={myOrgs}
+                />
             </div>
         </section>
     );
