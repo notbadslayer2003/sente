@@ -62,9 +62,9 @@ export async function registerToEventAction(
         .rpc("register_to_event", {
             p_event_id: parsed.data.event_id,
             p_full_name: parsed.data.full_name,
-            p_phone: parsed.data.phone,
+            p_phone: parsed.data.phone ?? "",
             p_payment_method: parsed.data.payment_method,
-            p_notes: parsed.data.notes,
+            p_notes: parsed.data.notes ?? "",
         })
         .single();
 

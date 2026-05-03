@@ -138,7 +138,7 @@ export async function refundEventRegistrationAction(
         p_commission_refund_cents: commissionRefundCents,
         p_reason: parsed.data.reason,
         p_stripe_refund_id: stripeRefundId,
-        p_stripe_charge_id: stripeChargeId,
+        p_stripe_charge_id: stripeChargeId ?? "",
     });
     if (rpcError) {
         console.error("record_event_refund failed after Stripe refund:", rpcError);

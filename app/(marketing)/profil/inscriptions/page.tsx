@@ -24,8 +24,7 @@ export default async function MyInscriptionsPage() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-    type Reg = (typeof registrations)[number];
-    const items = (registrations ?? []).map((r: Reg) => {
+    const items = (registrations ?? []).map((r) => {
         const event = Array.isArray(r.event) ? r.event[0] : r.event;
         const org = event && (Array.isArray(event.organization) ? event.organization[0] : event.organization);
         if (!event || !org) return null;

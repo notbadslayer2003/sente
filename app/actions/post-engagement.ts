@@ -171,7 +171,8 @@ export async function createCommentAction(
         p_post_id: parsed.data.post_id,
         p_parent_id: parsed.data.parent_id,
         p_content: parsed.data.content,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     if (error) {
         console.error("create_post_comment failed:", error);

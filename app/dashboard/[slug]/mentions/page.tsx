@@ -1,5 +1,3 @@
-import Link from "next/link";
-import Image from "next/image";
 import { getDashboardContext } from "@/lib/dal/dashboard";
 import { createClient } from "@/lib/supabase/server";
 import { MentionRow } from "@/components/sente/mention-row";
@@ -8,9 +6,9 @@ type Params = Promise<{ slug: string }>;
 
 export default async function MentionsPage({
                                                params,
-                                           }: {
+                                           }: Readonly<{
     params: Params;
-}) {
+}>) {
     const { slug } = await params;
     const ctx = await getDashboardContext(slug);
 
@@ -31,9 +29,8 @@ export default async function MentionsPage({
         .order("created_at", { ascending: false })
         .limit(50);
 
-    type RawMention = (typeof mentions)[number];
     const items = (mentions ?? [])
-        .map((m: RawMention) => {
+        .map((m) => {
             const post = Array.isArray(m.post) ? m.post[0] : m.post;
             if (!post || post.status !== "published" || post.deleted_at) return null;
             const author = Array.isArray(post.author) ? post.author[0] : post.author;

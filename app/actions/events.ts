@@ -38,34 +38,44 @@ const EventInputSchema = z.object({
     organization_id: z.string().uuid(),
     title: z.string().min(3, "Titre trop court").max(200, "Titre trop long").transform((v) => v.trim()),
     description: z
-        .string()
-        .max(4000)
+        .union([z.string().max(4000), z.literal(""), z.null()])
         .optional()
-        .transform((v) => (v && v.trim().length > 0 ? v.trim() : null)),
+        .transform((v) => (typeof v === "string" && v.trim().length > 0 ? v.trim() : null)),
     event_type: EventTypeEnum.optional().default("autre"),
     starts_at: z.string().min(1, "Date de début requise"),
-    ends_at: z.string().optional().transform((v) => (v && v.length > 0 ? v : null)),
-    location_text: z
-        .string()
-        .max(300)
+    ends_at: z
+        .union([z.string(), z.null()])
         .optional()
-        .transform((v) => (v && v.trim().length > 0 ? v.trim() : null)),
+        .transform((v) => (v && v.length > 0 ? v : null)),
+    location_text: z
+        .union([z.string().max(300), z.literal(""), z.null()])
+        .optional()
+        .transform((v) => (typeof v === "string" && v.trim().length > 0 ? v.trim() : null)),
     location_lat: z.coerce.number().min(-90).max(90).optional().nullable(),
     location_lng: z.coerce.number().min(-180).max(180).optional().nullable(),
     max_participants: z.coerce.number().int().min(1).optional().nullable(),
     price_cents: z.coerce.number().int().min(0),
     commission_rate_bps: z.coerce.number().int().min(0).max(5000).optional().nullable(),
     espece_cible: z
-        .union([EspeceEnum, z.literal("")])
+        .union([EspeceEnum, z.literal(""), z.null()])
         .optional()
-        .transform((v) => (v && v !== "" ? v : null)),
+        .transform((v) => (typeof v === "string" && v.length > 0 ? (v as z.infer<typeof EspeceEnum>) : null)),
     niveau: z
-        .union([NiveauEnum, z.literal("")])
+        .union([NiveauEnum, z.literal(""), z.null()])
         .optional()
-        .transform((v) => (v && v !== "" ? v : null)),
-    materiel_fourni: z.string().max(1000).optional().transform((v) => (v && v.trim() ? v.trim() : null)),
-    materiel_a_apporter: z.string().max(1000).optional().transform((v) => (v && v.trim() ? v.trim() : null)),
-    cover_image_url: z.string().url().optional().nullable(),
+        .transform((v) => (typeof v === "string" && v.length > 0 ? (v as z.infer<typeof NiveauEnum>) : null)),
+    materiel_fourni: z
+        .union([z.string().max(1000), z.literal(""), z.null()])
+        .optional()
+        .transform((v) => (typeof v === "string" && v.trim().length > 0 ? v.trim() : null)),
+    materiel_a_apporter: z
+        .union([z.string().max(1000), z.literal(""), z.null()])
+        .optional()
+        .transform((v) => (typeof v === "string" && v.trim().length > 0 ? v.trim() : null)),
+    cover_image_url: z
+        .union([z.string().url(), z.literal(""), z.null()])
+        .optional()
+        .transform((v) => (typeof v === "string" && v.length > 0 ? v : null)),
     publish_now: z.coerce.boolean().optional().default(false),
 });
 
@@ -83,7 +93,7 @@ function pickCommissionBps(formData: FormData): number | null {
     if (!raw || raw === "") return null;
     const pct = parseFloat(String(raw));
     if (Number.isNaN(pct)) return null;
-    return Math.round(pct * 100); // 3% -> 300 bps
+    return Math.round(pct * 100);
 }
 
 export async function createEventAction(
@@ -120,23 +130,24 @@ export async function createEventAction(
         .rpc("create_event", {
             p_organization_id: parsed.data.organization_id,
             p_title: parsed.data.title,
-            p_description: parsed.data.description ?? null,
+            p_description: parsed.data.description,
             p_event_type: parsed.data.event_type,
             p_starts_at: parsed.data.starts_at,
-            p_ends_at: parsed.data.ends_at ?? null,
-            p_location_text: parsed.data.location_text ?? null,
-            p_location_lat: parsed.data.location_lat ?? null,
-            p_location_lng: parsed.data.location_lng ?? null,
-            p_max_participants: parsed.data.max_participants ?? null,
+            p_ends_at: parsed.data.ends_at,
+            p_location_text: parsed.data.location_text,
+            p_location_lat: parsed.data.location_lat,
+            p_location_lng: parsed.data.location_lng,
+            p_max_participants: parsed.data.max_participants,
             p_price_cents: parsed.data.price_cents,
-            p_commission_rate_bps: parsed.data.commission_rate_bps ?? null,
-            p_espece_cible: parsed.data.espece_cible ?? null,
-            p_niveau: parsed.data.niveau ?? null,
-            p_materiel_fourni: parsed.data.materiel_fourni ?? null,
-            p_materiel_a_apporter: parsed.data.materiel_a_apporter ?? null,
-            p_cover_image_url: parsed.data.cover_image_url ?? null,
+            p_commission_rate_bps: parsed.data.commission_rate_bps,
+            p_espece_cible: parsed.data.espece_cible,
+            p_niveau: parsed.data.niveau,
+            p_materiel_fourni: parsed.data.materiel_fourni,
+            p_materiel_a_apporter: parsed.data.materiel_a_apporter,
+            p_cover_image_url: parsed.data.cover_image_url,
             p_publish_now: parsed.data.publish_now,
-        })
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any)
         .single();
 
     if (error) {
@@ -185,22 +196,23 @@ export async function updateEventAction(
     const { error } = await supabase.rpc("update_event", {
         p_event_id: parsed.data.event_id,
         p_title: parsed.data.title,
-        p_description: parsed.data.description ?? null,
+        p_description: parsed.data.description,
         p_event_type: parsed.data.event_type,
         p_starts_at: parsed.data.starts_at,
-        p_ends_at: parsed.data.ends_at ?? null,
-        p_location_text: parsed.data.location_text ?? null,
-        p_location_lat: parsed.data.location_lat ?? null,
-        p_location_lng: parsed.data.location_lng ?? null,
-        p_max_participants: parsed.data.max_participants ?? null,
+        p_ends_at: parsed.data.ends_at,
+        p_location_text: parsed.data.location_text,
+        p_location_lat: parsed.data.location_lat,
+        p_location_lng: parsed.data.location_lng,
+        p_max_participants: parsed.data.max_participants,
         p_price_cents: parsed.data.price_cents,
-        p_commission_rate_bps: parsed.data.commission_rate_bps ?? null,
-        p_espece_cible: parsed.data.espece_cible ?? null,
-        p_niveau: parsed.data.niveau ?? null,
-        p_materiel_fourni: parsed.data.materiel_fourni ?? null,
-        p_materiel_a_apporter: parsed.data.materiel_a_apporter ?? null,
-        p_cover_image_url: parsed.data.cover_image_url ?? null,
-    });
+        p_commission_rate_bps: parsed.data.commission_rate_bps,
+        p_espece_cible: parsed.data.espece_cible,
+        p_niveau: parsed.data.niveau,
+        p_materiel_fourni: parsed.data.materiel_fourni,
+        p_materiel_a_apporter: parsed.data.materiel_a_apporter,
+        p_cover_image_url: parsed.data.cover_image_url,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     if (error) {
         console.error("update_event failed:", error);

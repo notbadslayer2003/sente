@@ -49,7 +49,8 @@ export async function createReportAction(
         p_target_id: parsed.data.target_id,
         p_reason_code: parsed.data.reason,
         p_detail: parsed.data.detail,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     if (error) {
         console.error("create_report failed:", error);
@@ -80,7 +81,8 @@ export async function dismissReportAction(
     const { error } = await supabase.rpc("dismiss_report", {
         p_report_id: parsed.data.report_id,
         p_note: parsed.data.note ?? null,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
     if (error) return { ok: false, error: "Action refusée." };
 
     revalidatePath("/admin/reports");
@@ -100,7 +102,8 @@ export async function hideReportPostAction(
     const { error } = await supabase.rpc("action_report_hide_post", {
         p_report_id: parsed.data.report_id,
         p_note: parsed.data.note ?? null,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
     if (error) return { ok: false, error: "Action refusée." };
 
     revalidatePath("/admin/reports");
@@ -121,7 +124,8 @@ export async function hideReportCommentAction(
     const { error } = await supabase.rpc("action_report_hide_comment", {
         p_report_id: parsed.data.report_id,
         p_note: parsed.data.note ?? null,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
     if (error) return { ok: false, error: "Action refusée." };
 
     revalidatePath("/admin/reports");
@@ -141,7 +145,8 @@ export async function banReportUserAction(
     const { error } = await supabase.rpc("action_report_ban_user", {
         p_report_id: parsed.data.report_id,
         p_note: parsed.data.note ?? null,
-    });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
     if (error) return { ok: false, error: "Action refusée." };
 
     revalidatePath("/admin/reports");

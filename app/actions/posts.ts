@@ -37,9 +37,9 @@ const CreatePostSchema = z.object({
         .transform((v) => v.trim()),
     photos: z.array(z.string().url()).max(5, "Max 5 photos"),
     espece: z
-        .union([EspeceEnum, z.literal("")])
+        .union([EspeceEnum, z.literal(""), z.null()])
         .optional()
-        .transform((v) => (v && v !== "" ? v : null)),
+        .transform((v) => (typeof v === "string" && v.length > 0 ? (v as z.infer<typeof EspeceEnum>) : null)),
     weight_kg: z.coerce
         .number()
         .min(0)
@@ -101,10 +101,11 @@ export async function createPostAction(
             p_content: parsed.data.content,
             p_photos: parsed.data.photos,
             p_espece: parsed.data.espece,
-            p_weight_kg: parsed.data.weight_kg,
+            p_weight_kg: parsed.data.weight_kg ?? null,
             p_matos: parsed.data.matos,
             p_mentioned_org_ids: parsed.data.mentioned_org_ids,
-        })
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any)
         .single();
 
     if (error) {

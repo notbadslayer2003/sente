@@ -38,21 +38,33 @@ export function RegistrationsList({
     dashboardSlug: string;
 }) {
     const onExport = () => {
-        const csv = toCSV(
-            registrations.map((r) => ({
-                Nom: r.full_name,
-                Email: r.email,
-                Téléphone: r.phone ?? "",
-                "Méthode paiement": labelMethod(r.payment_method),
-                "Statut paiement": labelStatus(r.payment_status),
-                "Montant payé (€)":
-                    ((r.paid_amount_cents ?? 0) / 100).toFixed(2).replace(".", ","),
-                "Montant remboursé (€)":
-                    ((r.refunded_amount_cents ?? 0) / 100).toFixed(2).replace(".", ","),
-                Notes: r.notes ?? "",
-                "Inscrit le": new Date(r.created_at).toLocaleString("fr-BE"),
-            }))
-        );
+        const rows = registrations.map((r) => ({
+            Nom: r.full_name,
+            Email: r.email,
+            Téléphone: r.phone ?? "",
+            "Méthode paiement": labelMethod(r.payment_method),
+            "Statut paiement": labelStatus(r.payment_status),
+            "Montant payé (€)":
+                ((r.paid_amount_cents ?? 0) / 100).toFixed(2).replace(".", ","),
+            "Montant remboursé (€)":
+                ((r.refunded_amount_cents ?? 0) / 100).toFixed(2).replace(".", ","),
+            Notes: r.notes ?? "",
+            "Inscrit le": new Date(r.created_at).toLocaleString("fr-BE"),
+        }));
+
+        const columns = [
+            { key: "Nom" as const, label: "Nom" },
+            { key: "Email" as const, label: "Email" },
+            { key: "Téléphone" as const, label: "Téléphone" },
+            { key: "Méthode paiement" as const, label: "Méthode paiement" },
+            { key: "Statut paiement" as const, label: "Statut paiement" },
+            { key: "Montant payé (€)" as const, label: "Montant payé (€)" },
+            { key: "Montant remboursé (€)" as const, label: "Montant remboursé (€)" },
+            { key: "Notes" as const, label: "Notes" },
+            { key: "Inscrit le" as const, label: "Inscrit le" },
+        ];
+
+        const csv = toCSV(rows, columns);
 
         const filename = `inscriptions-${slugify(eventTitle)}-${new Date()
             .toISOString()

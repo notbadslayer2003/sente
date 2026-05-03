@@ -156,7 +156,7 @@ export async function refundSubscriptionAction(
         p_commission_refund_cents: commissionRefundCents,
         p_reason: parsed.data.reason,
         p_stripe_refund_id: stripeRefundId,
-        p_stripe_charge_id: stripeChargeId,
+        p_stripe_charge_id: stripeChargeId ?? "",
     });
 
     if (rpcError) {

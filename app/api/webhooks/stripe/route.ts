@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
         .insert({
             stripe_event_id: event.id,
             event_type: event.type,
-            payload: event as unknown as Record<string, unknown>,
+            payload: event as any
         });
 
     if (insertError) {
@@ -212,7 +212,7 @@ async function handleEventRegistrationPaid(args: {
         p_amount_cents: amountCents,
         p_commission_cents: applicationFee,
         p_stripe_payment_intent_id: piId,
-        p_stripe_charge_id: chargeId,
+        p_stripe_charge_id: chargeId ?? "",
     });
     if (rpcError) {
         throw new Error(`mark_event_registration_paid failed: ${rpcError.message}`);
@@ -298,7 +298,7 @@ async function handleSubscriptionPaid(args: {
         p_commission_cents: commissionCents,
         p_commission_rate_bps: commissionRateBps,
         p_stripe_payment_intent_id: piId,
-        p_stripe_charge_id: chargeId,
+        p_stripe_charge_id: chargeId ?? "",
     });
 
     if (rpcError) {
@@ -420,7 +420,7 @@ async function rattrapeEventRefund(
         p_stripe_charge_id:
             typeof refund.charge === "string"
                 ? refund.charge
-                : refund.charge?.id ?? null,
+                : refund.charge?.id ?? "",
     });
 
     if (rpcError) {
@@ -478,7 +478,7 @@ async function rattrapeSubscriptionRefund(
         p_stripe_charge_id:
             typeof refund.charge === "string"
                 ? refund.charge
-                : refund.charge?.id ?? null,
+                : refund.charge?.id ?? "",
     });
 
     if (rpcError) {
