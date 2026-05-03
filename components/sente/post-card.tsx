@@ -15,16 +15,20 @@ export function PostCard({
                              post,
                              currentUserId,
                              initialLiked,
+                             canDelete = false,
                          }: {
     post: PostListItem;
     currentUserId: string | null;
     initialLiked: boolean;
+    canDelete?: boolean;
 }) {
     const [isPending, startTransition] = useTransition();
     const [hidden, setHidden] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
 
-    const isMyPost = post.author.kind === "user" && post.author.id === currentUserId;
+    const isMyPost =
+        canDelete ||
+        (post.author.kind === "user" && post.author.id === currentUserId);
 
     const onDelete = () => {
         if (!confirm("Supprimer ce post ? Action irréversible.")) return;

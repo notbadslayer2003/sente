@@ -514,3 +514,54 @@ export async function getPostComments(
 
     return roots;
 }
+
+export async function getPostsByOrg(orgId: string): Promise<FeedPost[]> {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    const { data, error } = await supabase
+        .from("posts")
+        .select(
+            `id, content, photos, espece, weight_kg, matos,
+             likes_count, comments_count, created_at,
+             author_user_id, author_org_id,
+             user_profile:profiles!author_user_id(id, full_name, avatar_url),
+             org:organizations!author_org_id(id, slug, name, org_type, cover_image_url, is_sente_official),
+             mentions:post_org_mentions!post_id(
+                organization_id, removed_at,
+                org:organizations!organization_id(id, slug, name, org_type)
+             )`
+        )
+        .eq("author_org_id", orgId)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+    if (error || !data) {
+        if (error) console.error("getPostsByOrg failed:", error);
+        return [];
+    }
+
+    const items = data
+        .map(mapToPostListItem)
+        .filter((p): p is PostListItem => p !== null);
+
+    let likedSet = new Set<string>();
+    if (user && items.length > 0) {
+        const { data: likes } = await supabase
+            .from("post_likes")
+            .select("post_id")
+            .in("post_id", items.map((p) => p.id))
+            .eq("user_id", user.id);
+        likedSet = new Set((likes ?? []).map((l) => l.post_id));
+    }
+
+    return items.map((p) => ({
+        ...p,
+        is_liked_by_me: likedSet.has(p.id),
+        author: { ...p.author, is_followed_by_me: false },
+    }));
+}
