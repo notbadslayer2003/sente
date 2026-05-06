@@ -7,6 +7,7 @@ import { getResendClient } from "@/lib/email/client";
 import { buildPaymentConfirmationEmail } from "@/lib/email/templates/payment-confirmation";
 import { buildEventRegistrationConfirmEmail } from "@/lib/email/templates/event-registration-confirm";
 import { buildShopOrderConfirmEmail } from "@/lib/email/templates/shop-order-confirm";
+import {Json} from "@/lib/database.types";
 
 export const runtime = "nodejs";
 
@@ -570,7 +571,7 @@ async function handleShopOrderPaid(args: {
         p_customer_email: customerEmail ?? "",
         p_customer_name: customerName ?? "",
         p_customer_phone: customerPhone ?? "",
-        p_shipping_address: shippingAddress,
+        p_shipping_address: shippingAddress as unknown as Json,
     });
 
     if (rpcError) {
@@ -904,7 +905,7 @@ async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
         p_org_id: orgIdData,
         p_subscription_id: sub.id,
         p_status: status,
-        p_current_period_end: periodEndDate?.toISOString() ?? null,
+        p_current_period_end: (periodEndDate?.toISOString() ?? null) as string,
         p_cancel_at_period_end: sub.cancel_at_period_end,
         p_plan_id: planMapping.planId,
     });
@@ -937,7 +938,7 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
         p_org_id: orgIdData,
         p_subscription_id: sub.id,
         p_status: "canceled",
-        p_current_period_end: null,
+        p_current_period_end: null as unknown as string,
         p_cancel_at_period_end: false,
         p_plan_id: "vitrine", // ignoré côté SQL quand status=canceled
     });
