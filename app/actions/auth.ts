@@ -11,6 +11,7 @@ import {redirect} from "next/navigation";
 import {revalidatePath} from "next/cache";
 import {slugify} from "@/lib/utils/slug";
 import {createAdminClient} from "@/lib/supabase/admin";
+import { rateLimiters, checkRateLimit, getClientIp } from "@/lib/utils/rate-limit";
 
 export type ActionResult =
     | { ok: true }
@@ -60,14 +61,17 @@ export async function signupAction(formData: FormData): Promise<ActionResult> {
         userMetadata.pending_org_slug = slugify(orgName);
     }
 
-    const {data: signUpData, error: signUpError} = await supabase.auth.signUp({
+    const next = (formData.get("next") as string) || "";
+    const safeNext = next.startsWith("/") ? next : "/profil";
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
             data: userMetadata,
             emailRedirectTo: `${
                 process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
-            }/auth/callback`,
+            }/auth/callback?next=${encodeURIComponent(safeNext)}`,
         },
     });
 
@@ -125,6 +129,17 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
         return {ok: false, error: "Email ou mot de passe invalide"};
     }
 
+    // Rate limit IP : 10 tentatives / 15 min (anti brute-force)
+    const ip = await getClientIp();
+    const ipCheck = await checkRateLimit(
+        rateLimiters.loginByIp,
+        ip,
+        "Trop de tentatives de connexion. Réessaie dans 15 minutes."
+    );
+    if (!ipCheck.ok) {
+        return {ok: false, error: ipCheck.error};
+    }
+
     const supabase = await createClient();
     const {data: signInData, error} = await supabase.auth.signInWithPassword(
         parsed.data
@@ -179,6 +194,29 @@ export async function forgotPasswordAction(
 
     if (!parsed.success) {
         return {ok: false, error: "Email invalide"};
+    }
+
+    // Rate limit IP : 10 demandes / heure (anti-spam destinataire)
+    const ip = await getClientIp();
+    const ipCheck = await checkRateLimit(
+        rateLimiters.forgotPasswordByIp,
+        ip,
+        "Trop de demandes depuis ton IP. Réessaie dans 1 heure."
+    );
+    if (!ipCheck.ok) {
+        return {ok: false, error: ipCheck.error};
+    }
+
+    // Rate limit par email : 3 demandes / heure
+    // En cas de dépassement, on retourne ok=true silencieusement (anti-énumération)
+    const emailKey = parsed.data.email.toLowerCase();
+    const emailCheck = await checkRateLimit(
+        rateLimiters.forgotPasswordByEmail,
+        emailKey
+    );
+    if (!emailCheck.ok) {
+        console.warn("forgotPassword rate limited for email:", emailKey);
+        return {ok: true};
     }
 
     const supabase = await createClient();

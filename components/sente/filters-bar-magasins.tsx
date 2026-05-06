@@ -4,15 +4,7 @@ import { useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { PaysLabel, ProvinceLabel, type Pays, type Province } from "@/lib/schemas/lieu";
 import { SpecialiteLabel, type Specialite } from "@/lib/schemas/magasin";
-
-const SPECIALITES: Specialite[] = [
-    "general",
-    "carpe",
-    "carnassier",
-    "mouche",
-    "peche-blanc",
-    "peche-mer",
-];
+import { SPECIALITES_MAGASIN } from "@/lib/constants/specialites";
 
 const PAYS_LIST: Pays[] = ["BE", "FR"];
 
@@ -90,10 +82,7 @@ export function FiltersBarMagasins() {
                         disabled={isPending}
                         options={[
                             { value: "", label: "Toutes" },
-                            ...SPECIALITES.map((s) => ({
-                                value: s,
-                                label: SpecialiteLabel[s],
-                            })),
+                            ...SPECIALITES_MAGASIN.map((s) => ({ value: s.value, label: s.label })),
                         ]}
                     />
                     <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">

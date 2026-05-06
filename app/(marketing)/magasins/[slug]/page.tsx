@@ -11,6 +11,8 @@ import {FollowButton} from "@/components/sente/follow-button";
 import {createClient} from "@/lib/supabase/server";
 import { getUpcomingEvents } from "@/lib/dal/events";
 import { EventCard } from "@/components/sente/event-card";
+import { getPublishedProductsByOrg } from "@/lib/dal/products";
+import { ProductCard } from "@/components/sente/product-card";
 
 type Params = Promise<{ slug: string }>;
 
@@ -39,6 +41,13 @@ export default async function MagasinPage({params}: { params: Params }) {
 
     const all = await getMagasins({pays: magasin.pays});
     const similaires = all.filter((m) => m.id !== magasin.id).slice(0, 3);
+    const boutiqueProducts = magasin.id
+        ? await getPublishedProductsByOrg({
+            organization_id: magasin.id,
+            limit: 4,
+        })
+        : [];
+    const hasBoutique = boutiqueProducts.length > 0;
 
     return (
         <>
@@ -85,6 +94,14 @@ export default async function MagasinPage({params}: { params: Params }) {
                                 isLoggedIn={!!user}
                                 tone="dark"
                             />
+                        )}
+                        {hasBoutique && (
+                            <Link
+                                href={`/magasins/${magasin.slug}/boutique`}
+                                className="text-xs uppercase tracking-wide bg-accent text-accent-foreground px-5 py-2.5 hover:bg-accent/90 transition-colors"
+                            >
+                                Voir la boutique →
+                            </Link>
                         )}
                     </div>
                 </div>
@@ -163,7 +180,35 @@ export default async function MagasinPage({params}: { params: Params }) {
                             </div>
                         )}
 
-                        {magasin.partenaire && (
+                        {hasBoutique ? (
+                            <div>
+                                <div className="flex items-end justify-between flex-wrap gap-4">
+                                    <div>
+                                        <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                                            Boutique en ligne
+                                        </p>
+                                        <h3 className="mt-3 font-display text-2xl tracking-tight">
+                                            Aperçu du catalogue
+                                        </h3>
+                                    </div>
+                                    <Link
+                                        href={`/magasins/${magasin.slug}/boutique`}
+                                        className="text-sm font-medium uppercase tracking-wide border-b border-foreground pb-1 hover:text-accent hover:border-accent transition-colors"
+                                    >
+                                        Voir la boutique →
+                                    </Link>
+                                </div>
+                                <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {boutiqueProducts.map((p) => (
+                                        <ProductCard
+                                            key={p.id}
+                                            product={p}
+                                            orgSlug={magasin.slug}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        ) : magasin.partenaire ? (
                             <div className="border border-border bg-secondary/30 p-8">
                                 <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
                                     E-commerce
@@ -177,7 +222,7 @@ export default async function MagasinPage({params}: { params: Params }) {
                                     livraison ou retrait sur place.
                                 </p>
                             </div>
-                        )}
+                        ) : null}
                     </div>
 
                     <aside className="lg:col-span-5">
@@ -190,19 +235,18 @@ export default async function MagasinPage({params}: { params: Params }) {
                                     <p className="mt-3 text-sm leading-relaxed">
                                         {magasin.adresse}
                                     </p>
-
-                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                                    magasin.adresse
-                                )}`}
                                     <a
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mt-3 inline-block text-xs uppercase tracking-wide border-b border-foreground pb-0.5 hover:text-accent hover:border-accent transition-colors"
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                            magasin.adresse
+                                        )}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-3 inline-block text-xs uppercase tracking-wide border-b border-foreground pb-0.5 hover:text-accent hover:border-accent transition-colors"
                                     >
-                                        Voir l&apos;itinéraire →
-                                    </a>
+                                    Voir l&apos;itinéraire →
+                                </a>
                                 </div>
-                            )}
+                                )}
 
                             {magasin.horaires && (
                                 <div className="pt-6 border-t border-border">

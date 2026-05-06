@@ -85,7 +85,7 @@ export async function getMagasins(
     if (filter.pays) query = query.eq("country", filter.pays);
     if (filter.province) query = query.eq("region", filter.province);
     if (filter.partenaireOnly)
-        query = query.in("magasin_details.plan", ["pro", "boutique_plus"]);
+        query = query.in("magasin_details.plan", ["pro"]);
 
     const { data, error } = await query.order("created_at", { ascending: false });
 

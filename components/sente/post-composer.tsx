@@ -6,6 +6,8 @@ import { createPostAction } from "@/app/actions/posts";
 import { uploadPostPhotoAction } from "@/app/actions/post-photos";
 import { searchOrgsAction } from "@/app/actions/orgs-search";
 import { compressImage } from "@/lib/utils/image-compress";
+import { ESPECES as ESPECES_LIST } from "@/lib/constants/especes";
+
 
 type MyOrg = { id: string; name: string; slug: string; org_type: string };
 type OrgSearchResult = {
@@ -18,19 +20,7 @@ type OrgSearchResult = {
 
 const ESPECES = [
     { value: "", label: "Aucune" },
-    { value: "carpe", label: "Carpe" },
-    { value: "silure", label: "Silure" },
-    { value: "brochet", label: "Brochet" },
-    { value: "sandre", label: "Sandre" },
-    { value: "perche", label: "Perche" },
-    { value: "truite", label: "Truite" },
-    { value: "black_bass", label: "Black bass" },
-    { value: "gardon", label: "Gardon" },
-    { value: "tanche", label: "Tanche" },
-    { value: "esturgeon", label: "Esturgeon" },
-    { value: "carnassier", label: "Carnassier" },
-    { value: "blanc", label: "Blanc" },
-    { value: "salmonide", label: "Salmonidé" },
+    ...ESPECES_LIST.map((e) => ({ value: e.value, label: e.label })),
 ];
 
 export function PostComposer({

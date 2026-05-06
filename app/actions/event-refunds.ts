@@ -159,7 +159,7 @@ export async function refundEventRegistrationAction(
         });
         const resend = getResendClient();
         await resend.emails.send({
-            from: "Sente <onboarding@resend.dev>",
+            from: "Sente <notifications@lasente.eu>",
             to: [reg.email as string],
             subject: `Remboursement reçu — ${event.title}`,
             text,

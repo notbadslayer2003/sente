@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { loginAction } from "@/app/actions/auth";
+import {PasswordField} from "@/components/sente/password-field";
 
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
@@ -42,10 +43,9 @@ export default function LoginPage() {
                         required
                         autoComplete="email"
                     />
-                    <Field
+                    <PasswordField
                         label="Mot de passe"
                         name="password"
-                        type="password"
                         required
                         autoComplete="current-password"
                     />

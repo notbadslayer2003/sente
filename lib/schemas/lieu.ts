@@ -8,24 +8,16 @@ export const PaysLabel: Record<Pays, string> = {
     FR: "France",
 };
 
-export const EspeceSchema = z.enum([
-    "carpe",
-    "carnassier",
-    "salmonide",
-    "blanc",
-    "silure",
-    "esturgeon",
-]);
-export type Espece = z.infer<typeof EspeceSchema>;
+import { ESPECES, type EspeceValue } from "@/lib/constants/especes";
 
-export const EspeceLabel: Record<Espece, string> = {
-    carpe: "Carpe",
-    carnassier: "Carnassier",
-    salmonide: "Salmonidé",
-    blanc: "Poisson blanc",
-    silure: "Silure",
-    esturgeon: "Esturgeon",
-};
+const ESPECE_VALUES = ESPECES.map((e) => e.value) as [EspeceValue, ...EspeceValue[]];
+
+export const EspeceSchema = z.enum(ESPECE_VALUES);
+export type Espece = EspeceValue;
+
+export { ESPECE_LABEL as EspeceLabel } from "@/lib/constants/especes";
+
+// Reste du fichier inchangé
 
 export const ProvinceSchema = z.enum([
     "hainaut",

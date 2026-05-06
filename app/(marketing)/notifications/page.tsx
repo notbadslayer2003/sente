@@ -1,10 +1,24 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Heart, MessageCircle, AtSign, UserPlus, ShieldAlert, AlertTriangle } from "lucide-react";
+import {
+    Heart,
+    MessageCircle,
+    AtSign,
+    UserPlus,
+    ShieldAlert,
+    AlertTriangle,
+    ShoppingBag,
+    Package,
+    Truck,
+    RotateCcw,
+    Ticket,
+} from "lucide-react";
+import { formatPriceEur } from "@/lib/utils/format";
 import { createClient } from "@/lib/supabase/server";
 import { getNotifications } from "@/lib/dal/notifications";
 import { NotificationsActions } from "@/components/sente/notifications-actions";
+
 
 export default async function NotificationsPage() {
     const supabase = await createClient();
@@ -201,6 +215,162 @@ function formatNotification(
                 href: postHref,
             };
         case "account_action":
+            return formatAccountAction(item);
+        default:
+            return {
+                icon: <Heart className="w-4 h-4" strokeWidth={2} />,
+                message: <>Activité.</>,
+                href: null,
+            };
+    }
+}
+function formatAccountAction(
+    item: Awaited<ReturnType<typeof getNotifications>>[number]
+): { icon: React.ReactNode; message: React.ReactNode; href: string | null } {
+    const action = String(item.payload.action ?? "");
+    const orgName = item.target_org?.name ?? "le magasin";
+    const orgSlug = item.target_org?.slug ?? null;
+
+    switch (action) {
+        case "magasin_new_order": {
+            const orderId = String(item.payload.order_id ?? "");
+            const totalCents = Number(item.payload.total_cents ?? 0);
+            return {
+                icon: <ShoppingBag className="w-4 h-4" strokeWidth={2} />,
+                message: (
+                    <>
+                        Nouvelle commande de{" "}
+                        <strong>{formatPriceEur(totalCents, { showFree: false })}</strong>{" "}
+                        sur ta boutique.
+                    </>
+                ),
+                href:
+                    orgSlug && orderId
+                        ? `/dashboard/${orgSlug}/commandes/${orderId}`
+                        : null,
+            };
+        }
+
+        case "order_ready_for_pickup": {
+            const orderId = String(item.payload.order_id ?? "");
+            return {
+                icon: <Package className="w-4 h-4" strokeWidth={2} />,
+                message: (
+                    <>
+                        Ta commande chez <strong>{orgName}</strong> est prête à retirer.
+                    </>
+                ),
+                href: orderId ? `/profil/commandes/${orderId}` : `/profil/commandes`,
+            };
+        }
+
+        case "order_shipped": {
+            const orderId = String(item.payload.order_id ?? "");
+            const carrier = item.payload.tracking_carrier
+                ? String(item.payload.tracking_carrier)
+                : null;
+            return {
+                icon: <Truck className="w-4 h-4" strokeWidth={2} />,
+                message: (
+                    <>
+                        Ta commande chez <strong>{orgName}</strong> a été expédiée
+                        {carrier ? ` via ${carrier}` : ""}.
+                    </>
+                ),
+                href: orderId ? `/profil/commandes/${orderId}` : `/profil/commandes`,
+            };
+        }
+
+        case "order_refund": {
+            const orderId = String(item.payload.order_id ?? "");
+            const amountCents = Number(item.payload.amount_cents ?? 0);
+            const reason = item.payload.reason ? String(item.payload.reason) : null;
+            return {
+                icon: <RotateCcw className="w-4 h-4" strokeWidth={2} />,
+                message: (
+                    <>
+                        Remboursement de{" "}
+                        <strong>{formatPriceEur(amountCents, { showFree: false })}</strong>{" "}
+                        sur ta commande chez <strong>{orgName}</strong>.
+                        {reason ? (
+                            <>
+                                {" "}
+                                <span className="text-muted-foreground italic">
+                                    « {reason} »
+                                </span>
+                            </>
+                        ) : null}
+                    </>
+                ),
+                href: orderId ? `/profil/commandes/${orderId}` : `/profil/commandes`,
+            };
+        }
+
+        case "order_shipping_refund": {
+            const orderId = String(item.payload.order_id ?? "");
+            const amountCents = Number(item.payload.amount_cents ?? 0);
+            const reason = item.payload.reason ? String(item.payload.reason) : null;
+            return {
+                icon: <RotateCcw className="w-4 h-4" strokeWidth={2} />,
+                message: (
+                    <>
+                        Remboursement des frais de port (
+                        <strong>{formatPriceEur(amountCents, { showFree: false })}</strong>
+                        ) chez <strong>{orgName}</strong>.
+                        {reason ? (
+                            <>
+                                {" "}
+                                <span className="text-muted-foreground italic">
+                                    « {reason} »
+                                </span>
+                            </>
+                        ) : null}
+                    </>
+                ),
+                href: orderId ? `/profil/commandes/${orderId}` : `/profil/commandes`,
+            };
+        }
+
+        case "event_registration_paid": {
+            const amountCents = Number(item.payload.amount_cents ?? 0);
+            return {
+                icon: <Ticket className="w-4 h-4" strokeWidth={2} />,
+                message: (
+                    <>
+                        Inscription confirmée à un événement chez{" "}
+                        <strong>{orgName}</strong> (
+                        {formatPriceEur(amountCents, { showFree: false })}).
+                    </>
+                ),
+                href: `/profil/inscriptions`,
+            };
+        }
+
+        case "event_refund": {
+            const amountCents = Number(item.payload.amount_cents ?? 0);
+            const reason = item.payload.reason ? String(item.payload.reason) : null;
+            return {
+                icon: <RotateCcw className="w-4 h-4" strokeWidth={2} />,
+                message: (
+                    <>
+                        Remboursement de{" "}
+                        <strong>{formatPriceEur(amountCents, { showFree: false })}</strong>{" "}
+                        pour ton inscription à un événement chez <strong>{orgName}</strong>.
+                        {reason ? (
+                            <>
+                                {" "}
+                                <span className="text-muted-foreground italic">
+                                    « {reason} »
+                                </span>
+                            </>
+                        ) : null}
+                    </>
+                ),
+                href: `/profil/inscriptions`,
+            };
+        }
+
+        default:
             return {
                 icon: <AlertTriangle className="w-4 h-4" strokeWidth={2} />,
                 message: (
@@ -210,18 +380,12 @@ function formatNotification(
                             <>
                                 {" — "}
                                 <span className="text-muted-foreground italic">
-                  {String(item.payload.note)}
-                </span>
+                                    {String(item.payload.note)}
+                                </span>
                             </>
                         ) : null}
                     </>
                 ),
-                href: null,
-            };
-        default:
-            return {
-                icon: <Heart className="w-4 h-4" strokeWidth={2} />,
-                message: <>Activité.</>,
                 href: null,
             };
     }

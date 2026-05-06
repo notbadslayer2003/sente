@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {toCSV} from "@/lib/utils/csv";
+import { canChargeOnline } from "@/lib/dal/feature-gate";
 
 export type ActionResult<T = undefined> =
     | { ok: true; data?: T }
@@ -143,6 +144,17 @@ export async function addPecheurSubscriptionAction(
         .single();
     if (!membership) return { ok: false, error: "Accès refusé" };
 
+    // Feature gate : paiement en ligne réservé au plan CRM.
+    // Sur plan Vitrine, on bloque uniquement les modes "online_card".
+    // Cash/virement/chèque restent autorisés (c'est juste du tracking).
+    if (parsed.data.payment_method === "online_card") {
+        const gate = await canChargeOnline(parsed.data.etang_id);
+        if (!gate.ok) {
+            return { ok: false, error: gate.reason };
+        }
+    }
+
+
     // Insert
     const d = parsed.data;
     const { error } = await supabase.from("pecheur_subscriptions").insert({
@@ -208,6 +220,15 @@ export async function updatePecheurSubscriptionAction(
         data: { user },
     } = await supabase.auth.getUser();
     if (!user) return { ok: false, error: "Non authentifié" };
+
+    // Feature gate : si on bascule la méthode vers online_card, faut que
+    // l'étang soit en plan CRM
+    if (parsed.data.payment_method === "online_card") {
+        const gate = await canChargeOnline(parsed.data.etang_id);
+        if (!gate.ok) {
+            return { ok: false, error: gate.reason };
+        }
+    }
 
     const d = parsed.data;
     const { error } = await supabase

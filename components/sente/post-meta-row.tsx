@@ -1,32 +1,17 @@
 import Link from "next/link";
-
-const ESPECE_LABELS: Record<string, string> = {
-    carpe: "Carpe",
-    silure: "Silure",
-    brochet: "Brochet",
-    sandre: "Sandre",
-    perche: "Perche",
-    truite: "Truite",
-    black_bass: "Black bass",
-    gardon: "Gardon",
-    tanche: "Tanche",
-    esturgeon: "Esturgeon",
-    salmonide: "Salmonidé",
-    carnassier: "Carnassier",
-    blanc: "Blanc",
-};
+import { ESPECE_LABEL } from "@/lib/constants/especes";
 
 export function PostMetaRow({
                                 espece,
                                 weight_kg,
                                 matos,
                                 mentions,
-                            }: {
+                            }: Readonly<{
     espece: string | null;
     weight_kg: number | null;
     matos: string | null;
     mentions: Array<{ id: string; slug: string; name: string; org_type: string }>;
-}) {
+}>) {
     const hasMeta = !!espece || !!weight_kg || !!matos;
     const hasMentions = mentions.length > 0;
     if (!hasMeta && !hasMentions) return null;
@@ -37,18 +22,18 @@ export function PostMetaRow({
                 <div className="flex flex-wrap items-center gap-2">
                     {espece && (
                         <span className="px-2.5 py-1 text-xs bg-secondary border border-border">
-              {ESPECE_LABELS[espece] ?? espece}
-            </span>
+                            {(ESPECE_LABEL as Record<string, string>)[espece] ?? espece}
+                        </span>
                     )}
                     {weight_kg && (
                         <span className="px-2.5 py-1 text-xs bg-secondary border border-border tabular-nums">
-              {weight_kg.toFixed(2)} kg
-            </span>
+                          {weight_kg.toFixed(2)} kg
+                        </span>
                     )}
                     {matos && (
                         <span className="px-2.5 py-1 text-xs bg-secondary border border-border">
-              {matos}
-            </span>
+                          {matos}
+                        </span>
                     )}
                 </div>
             )}

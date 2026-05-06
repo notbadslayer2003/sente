@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
+import { Lock } from "lucide-react";
 import {
     inviteTeammateAction,
     revokeInvitationAction,
@@ -26,20 +28,37 @@ type Invitation = {
 
 export function TeamManager({
                                 orgId,
+                                slug,
                                 currentUserId,
                                 canManage,
+                                canInvite,
+                                inviteBlockedReason,
                                 members,
                                 invitations,
                             }: {
     orgId: string;
+    slug: string;
     currentUserId: string;
     canManage: boolean;
+    canInvite: boolean;
+    inviteBlockedReason: string | null;
     members: Member[];
     invitations: Invitation[];
 }) {
     return (
         <div className="space-y-12">
-            {canManage && <InviteForm orgId={orgId} />}
+            {canManage &&
+                (canInvite ? (
+                    <InviteForm orgId={orgId} />
+                ) : (
+                    <UpgradeInvite
+                        slug={slug}
+                        reason={
+                            inviteBlockedReason ??
+                            "Multi-utilisateurs réservé au plan supérieur."
+                        }
+                    />
+                ))}
 
             <MembersList
                 orgId={orgId}
@@ -54,6 +73,32 @@ export function TeamManager({
                     invitations={invitations}
                 />
             )}
+        </div>
+    );
+}
+
+function UpgradeInvite({ slug, reason }: { slug: string; reason: string }) {
+    return (
+        <div className="border border-accent/30 bg-accent/5 p-6">
+            <div className="flex items-start gap-4">
+                <div className="w-10 h-10 flex items-center justify-center bg-accent/10 text-accent shrink-0">
+                    <Lock className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <h2 className="font-display text-lg tracking-tight">
+                        Inviter un collaborateur
+                    </h2>
+                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                        {reason}
+                    </p>
+                    <Link
+                        href={`/dashboard/${slug}/parametres`}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-xs uppercase tracking-wide bg-accent text-accent-foreground hover:bg-accent/90 transition-colors"
+                    >
+                        Voir les plans →
+                    </Link>
+                </div>
+            </div>
         </div>
     );
 }
@@ -96,9 +141,9 @@ function InviteForm({ orgId }: { orgId: string }) {
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                 <div className="sm:col-span-7">
                     <label className="block">
-            <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              Email
-            </span>
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            Email
+                        </span>
                         <input
                             type="email"
                             name="email"
@@ -111,9 +156,9 @@ function InviteForm({ orgId }: { orgId: string }) {
                 </div>
                 <div className="sm:col-span-3">
                     <label className="block">
-            <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              Rôle
-            </span>
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            Rôle
+                        </span>
                         <select
                             name="role"
                             defaultValue="staff"
@@ -221,8 +266,8 @@ function MemberRow({
                         {member.full_name}
                         {isMe && (
                             <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-                (toi)
-              </span>
+                                (toi)
+                            </span>
                         )}
                     </p>
                     <p className="text-xs text-muted-foreground truncate mt-0.5">
@@ -243,9 +288,7 @@ function MemberRow({
                     </button>
                 )}
             </div>
-            {error && (
-                <p className="text-xs text-destructive">{error}</p>
-            )}
+            {error && <p className="text-xs text-destructive">{error}</p>}
         </li>
     );
 }
@@ -264,7 +307,11 @@ function InvitationsList({
             </h2>
             <ul className="divide-y divide-border border-y border-border">
                 {invitations.map((i) => (
-                    <InvitationRow key={i.id} canManage={canManage} invitation={i} />
+                    <InvitationRow
+                        key={i.id}
+                        canManage={canManage}
+                        invitation={i}
+                    />
                 ))}
             </ul>
         </div>
@@ -334,7 +381,7 @@ function RoleBadge({ role }: { role: "owner" | "admin" | "staff" }) {
         <span
             className={`px-2 py-0.5 text-[10px] uppercase tracking-wide ${v.className}`}
         >
-      {v.label}
-    </span>
+            {v.label}
+        </span>
     );
 }

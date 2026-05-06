@@ -221,7 +221,7 @@ async function sendConfirmationEmail(
 
     const resend = getResendClient();
     await resend.emails.send({
-        from: "Sente <onboarding@resend.dev>",
+        from: "Sente <notifications@lasente.eu>",
         to: [reg.email as string],
         subject: `Inscription confirmée — ${event.title}`,
         text,

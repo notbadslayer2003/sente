@@ -3,6 +3,7 @@
 import {createClient} from "@/lib/supabase/server";
 import {revalidatePath} from "next/cache";
 import {z} from "zod";
+import {getNotifications, NotificationItem} from "@/lib/dal/notifications";
 
 export type ActionResult<T = undefined> =
     | { ok: true; data?: T }
@@ -45,4 +46,11 @@ export async function markAllNotificationsReadAction(): Promise<
     }
     revalidatePath("/notifications");
     return {ok: true, data: {count: (data as unknown as number) ?? 0}};
+}
+
+export async function getNotificationsAction(opts?: {
+    limit?: number;
+    onlyUnread?: boolean;
+}): Promise<NotificationItem[]> {
+    return getNotifications({ limit: opts?.limit ?? 10, onlyUnread: opts?.onlyUnread });
 }

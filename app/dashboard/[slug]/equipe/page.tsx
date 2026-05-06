@@ -1,5 +1,6 @@
 import { getDashboardContext } from "@/lib/dal/dashboard";
 import { createClient } from "@/lib/supabase/server";
+import { canInviteTeamMember } from "@/lib/dal/feature-gate";
 import { TeamManager } from "@/components/sente/team-manager";
 
 type Params = Promise<{ slug: string }>;
@@ -38,6 +39,9 @@ export default async function TeamPage({ params }: { params: Params }) {
     }
     const canManage = ctx.role === "owner" || ctx.role === "admin";
 
+    // Feature gate : peut-on inviter un membre supplémentaire ?
+    const inviteGate = await canInviteTeamMember(ctx.org.id);
+
     return (
         <div className="space-y-12">
             <div>
@@ -57,8 +61,11 @@ export default async function TeamPage({ params }: { params: Params }) {
 
             <TeamManager
                 orgId={ctx.org.id}
+                slug={ctx.org.slug}
                 currentUserId={ctx.userId}
                 canManage={canManage}
+                canInvite={inviteGate.ok}
+                inviteBlockedReason={inviteGate.ok ? null : inviteGate.reason}
                 members={
                     members?.map((m) => ({
                         membership_id: m.id,

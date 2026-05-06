@@ -34,15 +34,6 @@ export default async function FeedPage({
     return (
         <section className="bg-background min-h-screen pt-24 pb-16">
             <div className="mx-auto max-w-2xl px-6 sm:px-8">
-                <div className="mb-8">
-                    <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
-                        Communauté
-                    </p>
-                    <h1 className="mt-3 font-display-soft text-5xl tracking-tight leading-[0.95]">
-                        Le fil.
-                    </h1>
-                </div>
-
                 <FeedClient
                     initialItems={items}
                     activeTab={tab}

@@ -1,7 +1,9 @@
 import { getDashboardContext } from "@/lib/dal/dashboard";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { canAccessRegistre } from "@/lib/dal/feature-gate";
 import { RegistreManager } from "@/components/sente/registre-manager";
+import { UpgradeBlock } from "@/components/sente/upgrade-block";
 
 type Params = Promise<{ slug: string }>;
 type SearchParams = Promise<{ year?: string }>;
@@ -18,6 +20,19 @@ export default async function RegistrePage({
     const ctx = await getDashboardContext(slug);
 
     if (ctx.org.org_type !== "etang") redirect(`/dashboard/${slug}`);
+
+    // Feature gating : registre réservé au plan CRM
+    const access = await canAccessRegistre(ctx.org.id);
+    if (!access.ok) {
+        return (
+            <UpgradeBlock
+                slug={slug}
+                featureName="Registre des pêcheurs"
+                requiredPlan={access.requiredPlan!}
+                description="Gère tes pêcheurs annuels avec un CRM dédié : ajout manuel, paiements en ligne, suivi des statuts, exports comptables."
+            />
+        );
+    }
 
     const supabase = await createClient();
 

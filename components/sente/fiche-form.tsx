@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { updateOrgFicheAction } from "@/app/actions/org";
-import { getRegionsForCountry, type CountryCode } from "@/lib/constants/regions";
+import {useRef, useState, useTransition} from "react";
+import {updateOrgFicheAction} from "@/app/actions/org";
+import {getRegionsForCountry, type CountryCode} from "@/lib/constants/regions";
 
 type OrgFields = {
     id: string;
@@ -23,11 +23,47 @@ type OrgFields = {
     social_instagram: string;
 };
 
-export function FicheForm({ org }: { org: OrgFields }) {
+export function FicheForm({org}: { org: OrgFields }) {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [isPending, startTransition] = useTransition();
+    const formRef = useRef<HTMLFormElement>(null);
+    const [lat, setLat] = useState(org.lat);
+    const [lng, setLng] = useState(org.lng);
+    const [geocoding, setGeocoding] = useState(false);
+    const [geocodeError, setGeocodeError] = useState<string | null>(null);
+
+    const geocode = async () => {
+        const form = formRef.current;
+        const address = (form?.elements.namedItem("address") as HTMLInputElement)?.value;
+        const city = (form?.elements.namedItem("city") as HTMLInputElement)?.value;
+        const postal = (form?.elements.namedItem("postal_code") as HTMLInputElement)?.value;
+        const country = org.country === "BE" ? "Belgium" : "France";
+
+        const query = [address, postal, city, country].filter(Boolean).join(", ");
+        if (!query.trim()) return;
+
+        setGeocoding(true);
+        setGeocodeError(null);
+        try {
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
+                {headers: {"User-Agent": "Sente/1.0 contact@lasente.eu"}}
+            );
+            const data = await res.json();
+            if (!data.length) {
+                setGeocodeError("Adresse introuvable. Vérifie les champs.");
+                return;
+            }
+            setLat(parseFloat(data[0].lat).toFixed(6));
+            setLng(parseFloat(data[0].lon).toFixed(6));
+        } catch {
+            setGeocodeError("Erreur réseau.");
+        } finally {
+            setGeocoding(false);
+        }
+    };
 
     const regions = getRegionsForCountry(org.country);
 
@@ -51,8 +87,9 @@ export function FicheForm({ org }: { org: OrgFields }) {
         });
     };
 
+
     return (
-        <form onSubmit={onSubmit} className="space-y-12">
+        <form onSubmit={onSubmit} className="space-y-12" ref={formRef}>
             {/* SECTION : Présentation */}
             <Section
                 title="Présentation"
@@ -95,8 +132,8 @@ export function FicheForm({ org }: { org: OrgFields }) {
                         name="region"
                         defaultValue={org.region}
                         options={[
-                            { value: "", label: "Sélectionner" },
-                            ...regions.map((r) => ({ value: r.value, label: r.label })),
+                            {value: "", label: "Sélectionner"},
+                            ...regions.map((r) => ({value: r.value, label: r.label})),
                         ]}
                         error={fieldErrors.region}
                     />
@@ -123,25 +160,53 @@ export function FicheForm({ org }: { org: OrgFields }) {
                         />
                     </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <Field
-                        label="Latitude"
-                        name="lat"
-                        defaultValue={org.lat}
-                        type="number"
-                        step="any"
-                        hint="Ex: 50.4504"
-                        error={fieldErrors.lat}
-                    />
-                    <Field
-                        label="Longitude"
-                        name="lng"
-                        defaultValue={org.lng}
-                        type="number"
-                        step="any"
-                        hint="Ex: 4.4525"
-                        error={fieldErrors.lng}
-                    />
+                <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <label className="block">
+            <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Latitude
+            </span>
+                            <input
+                                type="number"
+                                name="lat"
+                                value={lat}
+                                onChange={(e) => setLat(e.target.value)}
+                                step="any"
+                                className="mt-2 w-full bg-background border border-border px-4 py-3 text-sm focus:outline-none focus:border-accent transition-colors"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                                Longitude
+                            </span>
+                            <input
+                                type="number"
+                                name="lng"
+                                value={lng}
+                                onChange={(e) => setLng(e.target.value)}
+                                step="any"
+                                className="mt-2 w-full bg-background border border-border px-4 py-3 text-sm focus:outline-none focus:border-accent transition-colors"
+                            />
+                        </label>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={geocode}
+                            disabled={geocoding}
+                            className="px-4 py-2 text-xs uppercase tracking-wide border border-border hover:bg-accent/10 hover:border-accent transition-colors disabled:opacity-50"
+                        >
+                            {geocoding ? "Recherche..." : "Géolocaliser depuis l'adresse"}
+                        </button>
+                        {lat && lng && !geocoding && (
+                            <span className="text-xs text-muted-foreground">
+                                {lat}, {lng}
+                            </span>
+                        )}
+                    </div>
+                    {geocodeError && (
+                        <p className="text-xs text-destructive">{geocodeError}</p>
+                    )}
                 </div>
             </Section>
 
@@ -198,7 +263,8 @@ export function FicheForm({ org }: { org: OrgFields }) {
             </Section>
 
             {/* Submit */}
-            <div className="border-t border-border pt-8 flex flex-wrap items-center justify-between gap-4 sticky bottom-0 bg-background/95 backdrop-blur py-4">
+            <div
+                className="border-t border-border pt-8 flex flex-wrap items-center justify-between gap-4 sticky bottom-0 bg-background/95 backdrop-blur py-4">
                 <div className="text-sm">
                     {error && <span className="text-destructive">{error}</span>}
                     {success && (

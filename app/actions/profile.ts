@@ -1,30 +1,17 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { z } from "zod";
+import {createClient} from "@/lib/supabase/server";
+import {revalidatePath} from "next/cache";
+import {redirect} from "next/navigation";
+import {z} from "zod";
 import {createAdminClient} from "@/lib/supabase/admin";
+import { ESPECE_VALUES } from "@/lib/constants/especes";
 
 export type ActionResult =
     | { ok: true }
     | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
-const EspeceEnum = z.enum([
-    "carpe",
-    "silure",
-    "brochet",
-    "sandre",
-    "perche",
-    "truite",
-    "black_bass",
-    "gardon",
-    "tanche",
-    "esturgeon",
-    "salmonide",
-    "carnassier",
-    "blanc",
-]);
+const EspeceEnum = z.enum(ESPECE_VALUES);
 
 const UpdateProfileSchema = z.object({
     full_name: z
@@ -79,18 +66,18 @@ export async function updateProfileAction(
             const path = issue.path[0]?.toString();
             if (path) fieldErrors[path] = issue.message;
         }
-        return { ok: false, error: "Vérifie les champs", fieldErrors };
+        return {ok: false, error: "Vérifie les champs", fieldErrors};
     }
 
     const supabase = await createClient();
     const {
-        data: { user },
+        data: {user},
     } = await supabase.auth.getUser();
-    if (!user) return { ok: false, error: "Non authentifié" };
+    if (!user) return {ok: false, error: "Non authentifié"};
 
     // Construit l'objet de mise à jour avec un type accepté par Supabase JS.
     // marketing_opt_in_at n'est mis à jour que si l'opt-in est activé.
-    const { error } = parsed.data.marketing_opt_in
+    const {error} = parsed.data.marketing_opt_in
         ? await supabase
             .from("profiles")
             .update({
@@ -119,12 +106,12 @@ export async function updateProfileAction(
 
     if (error) {
         console.error("updateProfile failed:", error);
-        return { ok: false, error: "Impossible de sauvegarder." };
+        return {ok: false, error: "Impossible de sauvegarder."};
     }
 
     revalidatePath("/profil");
     revalidatePath("/profil/parametres");
-    return { ok: true };
+    return {ok: true};
 }
 
 /**
@@ -156,12 +143,12 @@ export async function deleteMyAccountAction(
     // 1. Identifier l'utilisateur via le client RLS (auth)
     const supabase = await createClient();
     const {
-        data: { user },
+        data: {user},
     } = await supabase.auth.getUser();
-    if (!user) return { ok: false, error: "Non authentifié" };
+    if (!user) return {ok: false, error: "Non authentifié"};
 
     // 2. Bloque si owner d'orgs actives (lecture via le client user, RLS OK)
-    const { data: ownedActive } = await supabase
+    const {data: ownedActive} = await supabase
         .from("organizations")
         .select("id, name, slug, status")
         .eq("owner_user_id", user.id)
@@ -180,14 +167,14 @@ export async function deleteMyAccountAction(
     //    On a déjà vérifié l'identité ci-dessus, c'est sûr.
     const admin = createAdminClient();
 
-    const { error: profileError } = await admin
+    const {error: profileError} = await admin
         .from("profiles")
-        .update({ deleted_at: new Date().toISOString() })
+        .update({deleted_at: new Date().toISOString()})
         .eq("id", user.id);
 
     if (profileError) {
         console.error("deleteMyAccount profile failed:", profileError);
-        return { ok: false, error: "Erreur lors de la suppression." };
+        return {ok: false, error: "Erreur lors de la suppression."};
     }
 
     await admin.from("audit_log").insert({
@@ -195,11 +182,76 @@ export async function deleteMyAccountAction(
         action: "user.soft_delete",
         target_type: "profile",
         target_id: user.id,
-        payload: { reason: "user_request" },
+        payload: {reason: "user_request"},
     });
 
     // 4. Logout côté user
     await supabase.auth.signOut();
     revalidatePath("/", "layout");
     redirect("/?account_deleted=1");
+}
+
+export async function exportUserDataAction(): Promise<
+    { ok: true; data: string } | { ok: false; error: string }
+> {
+    const supabase = await createClient();
+    const {data: {user}} = await supabase.auth.getUser();
+    if (!user) return {ok: false, error: "Non authentifié."};
+
+    const admin = createAdminClient();
+
+    const [profile, memberships, posts, orders, eventRegs, pecheurSubs, consents] =
+        await Promise.all([
+            admin.from("profiles").select("*").eq("id", user.id).single().then((r) => r.data),
+            admin
+                .from("memberships")
+                .select("role, accepted_at, organization:organizations(name, org_type)")
+                .eq("user_id", user.id)
+                .then((r) => r.data ?? []),
+            admin
+                .from("posts")
+                .select("id, content, photos, status, espece, weight_kg, created_at, updated_at, deleted_at")
+                .eq("author_user_id", user.id)
+                .then((r) => r.data ?? []),
+            admin
+                .from("orders")
+                .select("id, status, total_cents, subtotal_cents, shipping_cents, created_at, paid_at")
+                .eq("buyer_user_id", user.id)
+                .then((r) => r.data ?? []),
+            admin
+                .from("event_registrations")
+                .select("id, event_id, full_name, email, payment_status, paid_amount_cents, created_at")
+                .eq("user_id", user.id)
+                .then((r) => r.data ?? []),
+            admin
+                .from("pecheur_subscriptions")
+                .select("id, etang_id, saison_year, period_type, start_date, end_date, payment_status, paid_amount_cents, created_at")
+                .eq("pecheur_user_id", user.id)
+                .then((r) => r.data ?? []),
+            admin
+                .from("consent_log")
+                .select("kind, version, granted, ip, created_at")
+                .eq("user_id", user.id)
+                .order("created_at", {ascending: true})
+                .then((r) => r.data ?? []),
+        ]);
+
+    const payload = {
+        exported_at: new Date().toISOString(),
+        account: {
+            id: user.id,
+            email: user.email,
+            created_at: user.created_at,
+            last_sign_in_at: user.last_sign_in_at,
+        },
+        profile,
+        memberships,
+        posts,
+        orders,
+        event_registrations: eventRegs,
+        pecheur_subscriptions: pecheurSubs,
+        consents,
+    };
+
+    return {ok: true, data: JSON.stringify(payload, null, 2)};
 }

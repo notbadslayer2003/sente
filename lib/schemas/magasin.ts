@@ -1,24 +1,17 @@
 import { z } from "zod";
 import { ProvinceSchema, PaysSchema, type Province } from "@/lib/schemas/lieu";
+import {SPECIALITES_MAGASIN, type SpecialiteValue} from "@/lib/constants/specialites";
 
-export const SpecialiteSchema = z.enum([
-    "carpe",
-    "carnassier",
-    "mouche",
-    "peche-blanc",
-    "peche-mer",
-    "general",
-]);
-export type Specialite = z.infer<typeof SpecialiteSchema>;
+const SPECIALITE_VALUES = SPECIALITES_MAGASIN.map((s) => s.value) as [
+    SpecialiteValue,
+    ...SpecialiteValue[]
+];
 
-export const SpecialiteLabel: Record<Specialite, string> = {
-    carpe: "Carpe",
-    carnassier: "Carnassier",
-    mouche: "Mouche",
-    "peche-blanc": "Pêche blanc",
-    "peche-mer": "Pêche mer",
-    general: "Généraliste",
-};
+export const SpecialiteSchema = z.enum(SPECIALITE_VALUES);
+export type Specialite = SpecialiteValue;
+
+// Compat — SpecialiteLabel toujours exporté pour les endroits qui l'importent encore
+export { SPECIALITE_LABEL as SpecialiteLabel } from "@/lib/constants/specialites";
 
 export const MagasinSchema = z.object({
     id: z.string().min(1),
@@ -29,7 +22,7 @@ export const MagasinSchema = z.object({
     province: ProvinceSchema,
     ville: z.string(),
     adresse: z.string(),
-    specialites: z.array(SpecialiteSchema).min(1),
+    specialites: z.array(SpecialiteSchema),
     marques: z.array(z.string()),
     horaires: z.string(),
     photos: z.array(z.string().url()).min(1),

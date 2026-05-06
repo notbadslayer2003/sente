@@ -1,25 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
-import { Fish, Waves, Store } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { signupAction } from "@/app/actions/auth";
+import {Suspense, useState, useTransition} from "react";
+import {useSearchParams} from "next/navigation";
+import {Fish, Waves, Store} from "lucide-react";
+import type {LucideIcon} from "lucide-react";
+import {signupAction} from "@/app/actions/auth";
+import {PasswordField} from "@/components/sente/password-field";
 
 type Role = "pecheur" | "etang" | "magasin";
 
 export default function SignupPage() {
     return (
         <Suspense fallback={null}>
-            <SignupInner />
+            <SignupInner/>
         </Suspense>
     );
 }
 
 function SignupInner() {
     const searchParams = useSearchParams();
-    const initialRole = (searchParams.get("role") as Role) || null;
+    const next = searchParams.get("next") ?? "";
+
+    // Si le next pointe vers une invitation, on force pêcheur sans sélecteur
+    const isInvitation = next.startsWith("/invitations/");
+    const initialRole = isInvitation
+        ? "pecheur"
+        : (searchParams.get("role") as Role) || null;
+
     const [role, setRole] = useState<Role | null>(initialRole);
     const [success, setSuccess] = useState(false);
     const [submittedEmail, setSubmittedEmail] = useState("");
@@ -34,19 +42,28 @@ function SignupInner() {
                     <h1 className="mt-3 font-display-soft text-4xl sm:text-5xl tracking-tight leading-[0.95]">
                         {success
                             ? "Vérifie ta boîte mail."
-                            : role
-                                ? "Quelques infos et c'est parti."
-                                : "Vous êtes…"}
+                            : isInvitation
+                                ? "Crée ton compte pour rejoindre l'équipe."
+                                : role
+                                    ? "Quelques infos et c'est parti."
+                                    : "Vous êtes…"}
                     </h1>
+                    {isInvitation && !success && (
+                        <p className="mt-3 text-sm text-muted-foreground">
+                            Tu rejoins une organisation en tant que membre. Crée un compte pêcheur pour continuer.
+                        </p>
+                    )}
                 </div>
 
                 {success ? (
-                    <SuccessPanel email={submittedEmail} />
+                    <SuccessPanel email={submittedEmail}/>
                 ) : !role ? (
-                    <RoleSelector onSelect={setRole} />
+                    <RoleSelector onSelect={setRole}/>
                 ) : (
                     <SignupForm
                         role={role}
+                        next={next}
+                        locked={isInvitation}   // ← nouveau prop
                         onChangeRole={() => setRole(null)}
                         onSuccess={(email) => {
                             setSubmittedEmail(email);
@@ -59,7 +76,7 @@ function SignupInner() {
                     <p className="mt-10 text-center text-sm text-muted-foreground">
                         Déjà un compte ?{" "}
                         <Link
-                            href="/login"
+                            href={`/login${next ? `?next=${encodeURIComponent(next)}` : ""}`}
                             className="text-foreground border-b border-foreground hover:text-accent hover:border-accent transition-colors uppercase tracking-wide text-xs ml-1"
                         >
                             Se connecter
@@ -71,7 +88,7 @@ function SignupInner() {
     );
 }
 
-function SuccessPanel({ email }: { email: string }) {
+function SuccessPanel({email}: { email: string }) {
     return (
         <div className="border border-border bg-secondary/30 p-8 max-w-lg mx-auto">
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -86,7 +103,7 @@ function SuccessPanel({ email }: { email: string }) {
     );
 }
 
-function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
+function RoleSelector({onSelect}: { onSelect: (r: Role) => void }) {
     return (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-border border border-border max-w-3xl mx-auto">
             <RoleCard
@@ -133,7 +150,7 @@ function RoleCard({
             } hover:bg-accent/5`}
         >
             <div className="w-10 h-10 flex items-center justify-center bg-accent/10 text-accent">
-                <Icon className="w-5 h-5" strokeWidth={1.75} />
+                <Icon className="w-5 h-5" strokeWidth={1.75}/>
             </div>
             <p className="font-display text-2xl tracking-tight">{label}</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -148,10 +165,14 @@ function RoleCard({
 
 function SignupForm({
                         role,
+                        next,
+                        locked = false,
                         onChangeRole,
                         onSuccess,
                     }: {
     role: Role;
+    next: string,
+    locked?: boolean,
     onChangeRole: () => void;
     onSuccess: (email: string) => void;
 }) {
@@ -181,7 +202,8 @@ function SignupForm({
 
     return (
         <div className="max-w-lg mx-auto">
-            <div className="mb-8 flex items-center justify-between gap-4 border border-border bg-secondary/30 px-5 py-4">
+            <div
+                className="mb-8 flex items-center justify-between gap-4 border border-border bg-secondary/30 px-5 py-4">
                 <div>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                         Type de compte
@@ -192,16 +214,19 @@ function SignupForm({
                         {role === "magasin" && "Magasin"}
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={onChangeRole}
-                    className="text-xs uppercase tracking-wide border-b border-foreground pb-0.5 hover:text-accent hover:border-accent transition-colors"
-                >
-                    Changer
-                </button>
+                {!locked && (
+                    <button
+                        type="button"
+                        onClick={onChangeRole}
+                        className="text-xs uppercase tracking-wide border-b border-foreground pb-0.5 hover:text-accent hover:border-accent transition-colors"
+                    >
+                        Changer
+                    </button>
+                )}
             </div>
 
             <form onSubmit={onSubmit} className="space-y-5">
+                <input type="hidden" name="next" value={next}/>
                 {role !== "pecheur" && (
                     <>
                         <Field
@@ -216,9 +241,9 @@ function SignupForm({
                             required
                             error={fieldErrors.orgCountry}
                             options={[
-                                { value: "", label: "Sélectionner" },
-                                { value: "BE", label: "Belgique (Wallonie)" },
-                                { value: "FR", label: "France" },
+                                {value: "", label: "Sélectionner"},
+                                {value: "BE", label: "Belgique (Wallonie)"},
+                                {value: "FR", label: "France"},
                             ]}
                         />
                     </>
@@ -249,12 +274,12 @@ function SignupForm({
                     autoComplete="email"
                     error={fieldErrors.email}
                 />
-                <Field
+                <PasswordField
                     label="Mot de passe"
                     name="password"
-                    type="password"
                     required
                     autoComplete="new-password"
+                    minLength={8}
                     error={fieldErrors.password}
                     hint="8 caractères minimum"
                 />

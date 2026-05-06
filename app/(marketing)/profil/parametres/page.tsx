@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ProfileSettingsForm } from "@/components/sente/profile-settings-form";
 import { DeleteAccountSection } from "@/components/sente/delete-account-section";
+import {ExportDataSection} from "@/components/sente/export-data-section";
 
 export default async function ParametresPage() {
     const supabase = await createClient();
@@ -44,6 +45,7 @@ export default async function ParametresPage() {
                     }}
                 />
 
+                <ExportDataSection />
                 <DeleteAccountSection email={user.email ?? ""} />
 
                 <Link

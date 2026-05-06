@@ -6,6 +6,7 @@ import {z} from "zod";
 import {generateInvitationToken, hashToken} from "@/lib/utils/token";
 import {getResendClient} from "@/lib/email/client";
 import {buildInvitationEmail} from "@/lib/email/templates/invitation";
+import { canInviteTeamMember } from "@/lib/dal/feature-gate";
 
 export type ActionResult<T = undefined> =
     | { ok: true; data?: T }
@@ -37,6 +38,12 @@ export async function inviteTeammateAction(
         data: {user},
     } = await supabase.auth.getUser();
     if (!user) return {ok: false, error: "Non authentifié"};
+
+    // Feature gate : multi-user réservé aux plans payants
+    const gate = await canInviteTeamMember(parsed.data.org_id);
+    if (!gate.ok) {
+        return { ok: false, error: gate.reason };
+    }
 
     // 1. Génère le token clair + le hash
     const tokenClair = generateInvitationToken();
@@ -84,7 +91,7 @@ export async function inviteTeammateAction(
     try {
         const resend = getResendClient();
         await resend.emails.send({
-            from: "Sente <onboarding@resend.dev>",
+            from: "Sente <notifications@lasente.eu>",
             to: [parsed.data.email],
             subject: `Tu es invité·e à rejoindre ${orgName} sur Sente`,
             text,

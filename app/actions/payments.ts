@@ -6,6 +6,7 @@ import { z } from "zod";
 import { generateInvitationToken, hashToken } from "@/lib/utils/token";
 import { getResendClient } from "@/lib/email/client";
 import { buildPaymentLinkEmail } from "@/lib/email/templates/payment-link";
+import {canChargeOnline} from "@/lib/dal/feature-gate";
 
 export type ActionResult<T = undefined> =
     | { ok: true; data?: T }
@@ -41,6 +42,13 @@ export async function createPaymentLinkAction(
         .single();
 
     if (!sub) return { ok: false, error: "Abonnement introuvable" };
+
+    // Feature gate : paiements en ligne réservés au plan CRM
+    const gate = await canChargeOnline(sub.etang_id);
+    if (!gate.ok) {
+        return { ok: false, error: gate.reason };
+    }
+
 
     if (!sub.pecheur_email) {
         return {
@@ -98,7 +106,7 @@ export async function createPaymentLinkAction(
     try {
         const resend = getResendClient();
         await resend.emails.send({
-            from: "Sente <onboarding@resend.dev>",
+            from: "Sente <notifications@lasente.eu>",
             to: [sub.pecheur_email],
             subject: `Paiement en attente — ${org.name}`,
             text,
