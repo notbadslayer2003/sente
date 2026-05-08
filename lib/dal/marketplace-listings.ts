@@ -12,7 +12,7 @@ export type MarketplaceListingCondition =
 export type MarketplaceListingWithRelations = MarketplaceListing & {
     category: { id: string; slug: string; name_fr: string; parent_id: string | null } | null
     brand: { id: string; slug: string; name: string } | null
-    photos: Array<{ storage_path: string; position: number }>
+    photos: Array<{ id: string; storage_path: string; position: number }>
     seller: { id: string; full_name: string | null; avatar_url: string | null } | null
 }
 
@@ -58,7 +58,7 @@ export async function getMarketplaceListings(
         *,
         category:marketplace_categories!category_id(id, slug, name_fr, parent_id),
         brand:marketplace_brands!brand_id(id, slug, name),
-        photos:marketplace_listing_photos(storage_path, position),
+        photos:marketplace_listing_photos(id, storage_path, position),
         seller:profiles!seller_user_id(id, full_name, avatar_url)
       `,
             { count: 'exact' }
@@ -176,7 +176,7 @@ export async function getMarketplaceListingById(
       *,
       category:marketplace_categories!category_id(id, slug, name_fr, parent_id),
       brand:marketplace_brands!brand_id(id, slug, name),
-      photos:marketplace_listing_photos(storage_path, position),
+      photos:marketplace_listing_photos(id, storage_path, position),
       seller:profiles!seller_user_id(id, full_name, avatar_url)
     `)
         .eq('id', id)
@@ -209,7 +209,7 @@ export async function getMarketplaceListingsBySeller(
       *,
       category:marketplace_categories!category_id(id, slug, name_fr, parent_id),
       brand:marketplace_brands!brand_id(id, slug, name),
-      photos:marketplace_listing_photos(storage_path, position),
+      photos:marketplace_listing_photos(id, storage_path, position),
       seller:profiles!seller_user_id(id, full_name, avatar_url)
     `)
         .eq('seller_user_id', sellerId)
@@ -250,7 +250,7 @@ export async function getMyListings(options: {
       *,
       category:marketplace_categories!category_id(id, slug, name_fr, parent_id),
       brand:marketplace_brands!brand_id(id, slug, name),
-      photos:marketplace_listing_photos(storage_path, position),
+      photos:marketplace_listing_photos(id, storage_path, position),
       seller:profiles!seller_user_id(id, full_name, avatar_url)
     `)
         .eq("seller_user_id", user.id)
@@ -347,7 +347,7 @@ export async function getMarketplacePublicListings(
       *,
       category:marketplace_categories!category_id(id, slug, name_fr, parent_id),
       brand:marketplace_brands!brand_id(id, slug, name),
-      photos:marketplace_listing_photos(storage_path, position),
+      photos:marketplace_listing_photos(id, storage_path, position),
       seller:profiles!seller_user_id(id, full_name, avatar_url)
     `,
             { count: "exact" }

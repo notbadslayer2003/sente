@@ -19,7 +19,13 @@ const CONDITION_LABELS: Record<string, string> = {
     good: "Bon état",
     acceptable: "Correct",
 };
+const VALID_CONDITIONS = ["new_with_tag", "new", "very_good", "good", "acceptable"] as const;
+type ValidCondition = typeof VALID_CONDITIONS[number];
 
+function parseCondition(v: string | undefined): ValidCondition | undefined {
+    if (!v) return undefined;
+    return VALID_CONDITIONS.includes(v as ValidCondition) ? (v as ValidCondition) : undefined;
+}
 function formatPrice(cents: number): string {
     return (cents / 100).toLocaleString("fr-BE", {
         style: "currency",
@@ -49,7 +55,7 @@ export default async function MarketplacePage({
 
     const filters = {
         categorySlug: typeof sp.category === "string" ? sp.category : undefined,
-        condition: typeof sp.condition === "string" ? sp.condition : undefined,
+        condition: parseCondition(typeof sp.condition === "string" ? sp.condition : undefined),
         country:
             sp.country === "BE" || sp.country === "FR"
                 ? (sp.country as "BE" | "FR")
