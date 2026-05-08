@@ -279,6 +279,7 @@ export async function getMyListings(options: {
 // =============================================================================
 // Ne pas dupliquer les imports déjà présents en haut du fichier
 // (createClient, type MarketplaceListingWithRelations, etc.)
+
 // =============================================================================
 
 export type MarketplacePublicListingsFilters = {
