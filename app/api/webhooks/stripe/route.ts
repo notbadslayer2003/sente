@@ -7,7 +7,9 @@ import { getResendClient } from "@/lib/email/client";
 import { buildPaymentConfirmationEmail } from "@/lib/email/templates/payment-confirmation";
 import { buildEventRegistrationConfirmEmail } from "@/lib/email/templates/event-registration-confirm";
 import { buildShopOrderConfirmEmail } from "@/lib/email/templates/shop-order-confirm";
-import {Json} from "@/lib/database.types";
+import {Database, Json} from "@/lib/database.types";
+import {mapStripeAccountToKycState} from "@/lib/marketplace/kyc-mapper";
+import { buildMarketplaceSaleNotificationEmail } from "@/lib/email/templates/marketplace-sale-notification";
 
 export const runtime = "nodejs";
 
@@ -40,21 +42,60 @@ export async function POST(req: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Idempotence
+// =========================================================================
+    // Idempotence webhook_events
+    // =========================================================================
+    // Pattern :
+    //   1. Tenter d'insérer la ligne event.
+    //   2. Si conflit 23505 → cet event a déjà été reçu :
+    //      - Si processed_at IS NOT NULL → vraiment traité, skip.
+    //      - Si processed_at IS NULL → précédent essai a planté ou est en
+    //        cours, on autorise le replay (Stripe retry doit pouvoir aboutir).
+    //   3. Process. À la fin, set processed_at + clear error_message.
+    //   4. En cas d'erreur, capture error_message et retourne 500 (Stripe
+    //      retry plus tard, on retombe dans le cas 2-replay).
+    //
+    // Hypothèse : les handlers individuels sont idempotents (check d'état
+    // interne avant d'agir). Les retries Stripe sont séquentiels (backoff
+    // exponentiel), pas de race concurrente prévue à ce stade.
+    // =========================================================================
+
     const { error: insertError } = await admin
         .from("webhook_events")
         .insert({
             stripe_event_id: event.id,
             event_type: event.type,
-            payload: event as any
+            payload: event as any,
         });
 
+    let isReplay = false;
     if (insertError) {
-        if (insertError.code === "23505") {
-            return NextResponse.json({ received: true, skipped: true });
+        if (insertError.code !== "23505") {
+            console.error("Failed to insert webhook event:", insertError);
+            return NextResponse.json({ error: "Internal error" }, { status: 500 });
         }
-        console.error("Failed to insert webhook event:", insertError);
-        return NextResponse.json({ error: "Internal error" }, { status: 500 });
+        // Conflit : event déjà reçu. On vérifie s'il a été VRAIMENT traité.
+        const { data: existing } = await admin
+            .from("webhook_events")
+            .select("processed_at")
+            .eq("stripe_event_id", event.id)
+            .single();
+
+        if (existing?.processed_at) {
+            // Vraiment fini, on skip pour de bon.
+            return NextResponse.json({ received: true, already_processed: true });
+        }
+
+        // Sinon, on autorise le replay (le précédent essai a planté).
+        isReplay = true;
+        console.log(
+            `Replaying webhook ${event.id} (event_type=${event.type}, previous attempt failed)`
+        );
+        // Reset le message d'erreur précédent — on retente.
+        await admin
+            .from("webhook_events")
+            .update({ error_message: null })
+            .eq("stripe_event_id", event.id);
     }
 
     try {
@@ -68,10 +109,15 @@ export async function POST(req: NextRequest) {
             case "checkout.session.completed":
                 await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
                 break;
+            case "checkout.session.expired":
+                await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
+                break;
+            case "payment_intent.payment_failed":
+                await handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
+                break;
             case "charge.refunded":
                 await handleChargeRefunded(event.data.object as Stripe.Charge);
                 break;
-            // Subscription billing (plans Sente)
             case "customer.subscription.created":
             case "customer.subscription.updated":
                 await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
@@ -86,37 +132,111 @@ export async function POST(req: NextRequest) {
                 console.log(`Unhandled webhook event type: ${event.type}`);
         }
 
+        // Marqué traité avec succès. Le replay éventuel sera court-circuité
+        // au prochain check processed_at.
         await admin
             .from("webhook_events")
-            .update({ processed_at: new Date().toISOString() })
+            .update({
+                processed_at: new Date().toISOString(),
+                error_message: null,
+            })
             .eq("stripe_event_id", event.id);
     } catch (err) {
-        console.error(`Error processing webhook ${event.id}:`, err);
+        console.error(
+            `Error processing webhook ${event.id}${isReplay ? " (replay)" : ""}:`,
+            err
+        );
         await admin
             .from("webhook_events")
             .update({
                 error_message: err instanceof Error ? err.message : String(err),
             })
             .eq("stripe_event_id", event.id);
+        // 500 → Stripe retry plus tard, on retombera dans le replay.
         return NextResponse.json({ error: "Processing failed" }, { status: 500 });
     }
 
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ received: true, replayed: isReplay });
 }
 
 async function handleAccountUpdated(account: Stripe.Account) {
     const admin = createAdminClient();
-    const { error } = await admin.rpc("update_stripe_account_status", {
-        p_stripe_account_id: account.id,
-        p_charges_enabled: account.charges_enabled ?? false,
-        p_payouts_enabled: account.payouts_enabled ?? false,
-        p_details_submitted: account.details_submitted ?? false,
+
+    // 1. Tenter d'abord match magasin (organizations.stripe_account_id)
+    const { data: org } = await admin
+        .from("organizations")
+        .select("id")
+        .eq("stripe_account_id", account.id)
+        .maybeSingle();
+
+    if (org) {
+        // Logique magasin existante via RPC
+        const { error } = await admin.rpc("update_stripe_account_status", {
+            p_stripe_account_id: account.id,
+            p_charges_enabled: account.charges_enabled ?? false,
+            p_payouts_enabled: account.payouts_enabled ?? false,
+            p_details_submitted: account.details_submitted ?? false,
+        });
+
+        if (error) throw new Error(`RPC failed: ${error.message}`);
+
+        console.log(
+            `Stripe account ${account.id} (org=${org.id}) updated: charges=${account.charges_enabled}, payouts=${account.payouts_enabled}, details=${account.details_submitted}`
+        );
+        return;
+    }
+
+    // 2. Sinon, tenter match seller marketplace
+    const { data: seller } = await admin
+        .from("marketplace_seller_accounts")
+        .select("user_id, kyc_status")
+        .eq("stripe_account_id", account.id)
+        .maybeSingle();
+
+    if (!seller) {
+        console.warn(`Stripe account.updated reçu pour un account inconnu : ${account.id}`);
+        return;
+    }
+
+    const { kyc_status, dac7Updates } = mapStripeAccountToKycState(account);
+
+    const updatePayload: Database["public"]["Tables"]["marketplace_seller_accounts"]["Update"] = {
+        kyc_status,
+        stripe_charges_enabled: account.charges_enabled ?? false,
+        stripe_payouts_enabled: account.payouts_enabled ?? false,
+        stripe_details_submitted: account.details_submitted ?? false,
+        ...dac7Updates,
+    };
+
+    if (kyc_status === "verified" && seller.kyc_status !== "verified") {
+        updatePayload.kyc_completed_at = new Date().toISOString();
+    }
+
+    const { error } = await admin
+        .from("marketplace_seller_accounts")
+        .update(updatePayload)
+        .eq("user_id", seller.user_id);
+
+    if (error) {
+        throw new Error(`Marketplace seller update failed: ${error.message}`);
+    }
+
+    // Audit log
+    await admin.from("audit_log").insert({
+        actor_user_id: null,
+        action: "marketplace_kyc_status_changed",
+        target_type: "marketplace_seller_accounts",
+        target_id: seller.user_id,
+        payload: {
+            stripe_account_id: account.id,
+            new_status: kyc_status,
+            charges_enabled: account.charges_enabled,
+            payouts_enabled: account.payouts_enabled,
+        },
     });
 
-    if (error) throw new Error(`RPC failed: ${error.message}`);
-
     console.log(
-        `Stripe account ${account.id} updated: charges=${account.charges_enabled}, payouts=${account.payouts_enabled}, details=${account.details_submitted}`
+        `Marketplace seller ${seller.user_id} updated: kyc_status=${kyc_status}`
     );
 }
 
@@ -141,6 +261,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         return;
     }
 
+    const admin = createAdminClient();
+
     // Subscription Sente : pas de Connect, pas de payment_intent direct.
     // La synchro DB est gérée par customer.subscription.created/updated.
     // On early-return ici AVANT de chercher stripe_account_id (qui n'existe
@@ -154,12 +276,20 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         return;
     }
 
+    // Marketplace C2C : escrow chez Sente, pas de Connect direct charge.
+    // Le PI vit sur le compte plateforme, pas sur un compte connecté seller.
+    // On route ici, AVANT la lecture de sente_org_id (qui n'existe pas en C2C).
+    const senteContext = session.metadata?.sente_context;
+    if (senteContext === "marketplace_c2c") {
+        await handleMarketplaceOrderPaid({ session, admin });
+        return;
+    }
+
     const orgId = session.metadata?.sente_org_id;
     if (!orgId) {
         throw new Error(`No sente_org_id in session ${session.id}`);
     }
 
-    const admin = createAdminClient();
     const { data: org } = await admin
         .from("organizations")
         .select("stripe_account_id")
@@ -1016,4 +1146,346 @@ function mapStripeSubscriptionStatus(
         default:
             return "free";
     }
+}
+
+// =============================================================================
+// MARKETPLACE C2C HANDLERS
+// =============================================================================
+
+async function handleMarketplaceOrderPaid(args: {
+    session: Stripe.Checkout.Session;
+    admin: ReturnType<typeof createAdminClient>;
+}) {
+    const { session, admin } = args;
+
+    const orderId = session.metadata?.order_id;
+    if (!orderId) {
+        throw new Error(`No order_id in marketplace session ${session.id}`);
+    }
+
+    // Charge l'order avec les relations nécessaires en un seul fetch.
+    // On a besoin de :
+    //  - status (idempotence interne)
+    //  - listing_id, offer_id (pour update listing/offer)
+    //  - les montants pour la ligne payments
+    //  - les détails pour le mail seller
+    const { data: order, error: orderErr } = await admin
+        .from("marketplace_orders")
+        .select(
+            `id, status, listing_id, offer_id, buyer_user_id, seller_user_id,
+             item_price_cents, total_cents, commission_cents, seller_payout_cents,
+             shipping_carrier, relay_point_id, shipping_full_name,
+             listing:marketplace_listings!listing_id(id, title),
+             seller:profiles!seller_user_id(full_name)`
+        )
+        .eq("id", orderId)
+        .maybeSingle();
+
+    if (orderErr) {
+        throw new Error(`Failed to load marketplace order ${orderId}: ${orderErr.message}`);
+    }
+    if (!order) {
+        throw new Error(`Marketplace order ${orderId} not found`);
+    }
+
+    // Idempotence interne : si déjà payé/expédié/etc., on a déjà traité ce paiement.
+    // (En plus de l'idempotence webhook_events au niveau global.)
+    if (order.status !== "pending_payment") {
+        console.log(
+            `Marketplace order ${orderId} already in status '${order.status}', skipping payment processing`
+        );
+        return;
+    }
+
+    // Le PI vit sur le compte plateforme (pas de stripeAccount option).
+    const stripe = getStripeClient();
+    const piId =
+        typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id;
+    if (!piId) {
+        throw new Error(`No payment_intent on marketplace session ${session.id}`);
+    }
+
+    const pi = await stripe.paymentIntents.retrieve(piId, {
+        expand: ["latest_charge"],
+    });
+    const charge = pi.latest_charge as Stripe.Charge | null;
+    const chargeId = typeof charge === "object" && charge ? charge.id : null;
+
+    // 1. Update order : pending_payment → paid_awaiting_shipment
+    const { error: updOrderErr } = await admin
+        .from("marketplace_orders")
+        .update({
+            status: "paid_awaiting_shipment",
+            paid_at: new Date().toISOString(),
+            stripe_payment_intent_id: piId,
+            stripe_charge_id: chargeId,
+        })
+        .eq("id", orderId)
+        .eq("status", "pending_payment"); // garde-fou contre race
+
+    if (updOrderErr) {
+        throw new Error(`Failed to update marketplace order ${orderId}: ${updOrderErr.message}`);
+    }
+
+    // 2. Update listing : active/reserved → sold
+    //    On force l'update sans condition de statut : si quelqu'un a foiré le
+    //    listing à la main entretemps, on veut quand même le marquer sold puisque
+    //    le paiement est passé.
+    const { error: updListingErr } = await admin
+        .from("marketplace_listings")
+        .update({ status: "sold" })
+        .eq("id", order.listing_id);
+
+    if (updListingErr) {
+        throw new Error(`Failed to mark listing ${order.listing_id} as sold: ${updListingErr.message}`);
+    }
+
+    // 3. Si offre liée : on laisse en 'accepted' (l'enum n'a pas de 'completed').
+    //    L'état effectif est tracké via marketplace_orders.
+
+    // 4. INSERT payments : ligne escrow.
+    //    recipient_org_id = null (le recipient effectif est le seller_user_id,
+    //    retraçable via reference_id → marketplace_orders.seller_user_id).
+    //    À factoriser plus tard si on ajoute recipient_user_id à payments.
+    const { error: payErr } = await admin.from("payments").insert({
+        kind: "c2c_escrow",
+        reference_id: orderId,
+        payer_user_id: order.buyer_user_id,
+        recipient_org_id: null,
+        amount_cents: order.total_cents,
+        sente_commission_cents: order.commission_cents,
+        currency: "eur",
+        stripe_payment_intent_id: piId,
+        stripe_charge_id: chargeId,
+        status: "paid",
+    });
+
+    if (payErr) {
+        // On ne re-throw pas : la commande est déjà marked paid, on a juste
+        // raté la ligne de tracking. À corriger via réplay manuel si besoin.
+        // Cohérent avec l'esprit "le paiement est l'essentiel".
+        console.error(`Failed to insert c2c_escrow payment row for order ${orderId}:`, payErr);
+    }
+
+    // 5. Audit
+    await admin.from("audit_log").insert({
+        actor_user_id: null,
+        action: "marketplace_order_paid",
+        target_type: "marketplace_orders",
+        target_id: orderId,
+        payload: {
+            stripe_payment_intent_id: piId,
+            stripe_charge_id: chargeId,
+            total_cents: order.total_cents,
+            commission_cents: order.commission_cents,
+            buyer_user_id: order.buyer_user_id,
+            seller_user_id: order.seller_user_id,
+            listing_id: order.listing_id,
+            offer_id: order.offer_id,
+        },
+    });
+
+    console.log(`Marketplace order ${orderId} marked paid_awaiting_shipment`);
+
+    // 6. Mail seller — try/catch, jamais re-throw (cohérent shop_order)
+    await sendMarketplaceSaleNotification({ order, admin });
+}
+
+async function sendMarketplaceSaleNotification(args: {
+    order: {
+        id: string;
+        seller_user_id: string;
+        item_price_cents: number;
+        seller_payout_cents: number;
+        shipping_carrier: string;
+        relay_point_id: string | null;
+        shipping_full_name: string;
+        listing: { id: string; title: string } | { id: string; title: string }[] | null;
+        seller: { full_name: string | null } | { full_name: string | null }[] | null;
+    };
+    admin: ReturnType<typeof createAdminClient>;
+}) {
+    const { order, admin } = args;
+
+    try {
+        // Récupère l'email seller depuis auth.users (pas exposé dans profiles).
+        const { data: userData } = await admin.auth.admin.getUserById(
+            order.seller_user_id
+        );
+        const sellerEmail = userData?.user?.email;
+        if (!sellerEmail) {
+            console.warn(
+                `No email found for seller ${order.seller_user_id}, skipping notification`
+            );
+            return;
+        }
+
+        const listing = Array.isArray(order.listing) ? order.listing[0] : order.listing;
+        const seller = Array.isArray(order.seller) ? order.seller[0] : order.seller;
+
+        const carrierLabels: Record<string, string> = {
+            mondial_relay: "Mondial Relay",
+            colissimo: "Colissimo",
+        };
+
+        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "";
+
+        const { text, html } = buildMarketplaceSaleNotificationEmail({
+            sellerFullName: seller?.full_name ?? "vendeur",
+            buyerFullName: order.shipping_full_name,
+            listingTitle: listing?.title ?? "ton annonce",
+            itemPriceEur: order.item_price_cents / 100,
+            payoutEur: order.seller_payout_cents / 100,
+            shippingCarrierLabel:
+                carrierLabels[order.shipping_carrier] ?? order.shipping_carrier,
+            relayPointId: order.relay_point_id,
+            orderUrl: `${baseUrl}/profil/marketplace/commandes/${order.id}`,
+        });
+
+        const resend = getResendClient();
+        await resend.emails.send({
+            from: "Sente <notifications@lasente.eu>",
+            to: [sellerEmail],
+            subject: `Vente confirmée — ${listing?.title ?? "ton annonce"}`,
+            text,
+            html,
+        });
+    } catch (err) {
+        console.error(
+            `Marketplace sale notification failed for order ${order.id}:`,
+            err
+        );
+        // Pas de re-throw : l'order est déjà marked paid, le mail est secondaire.
+    }
+}
+
+async function handleCheckoutExpired(session: Stripe.Checkout.Session) {
+    // On route via sente_context. Pour l'instant on ne gère que marketplace_c2c
+    // ici — pour les autres contextes (shop_order, event_registration, etc.),
+    // les sessions abandonnées ne génèrent pas d'order côté DB (l'order est créé
+    // au moment du checkout marketplace, mais shop_order suit un autre pattern).
+    const senteContext = session.metadata?.sente_context;
+    if (senteContext !== "marketplace_c2c") {
+        console.log(
+            `checkout.session.expired ignored (context=${senteContext ?? "none"})`
+        );
+        return;
+    }
+
+    const orderId = session.metadata?.order_id;
+    if (!orderId) {
+        console.warn(`Marketplace expired session ${session.id} sans order_id, skip`);
+        return;
+    }
+
+    const admin = createAdminClient();
+
+    // Charge l'order pour lire status + offer_id + listing_id
+    const { data: order } = await admin
+        .from("marketplace_orders")
+        .select("id, status, listing_id, offer_id")
+        .eq("id", orderId)
+        .maybeSingle();
+
+    if (!order) {
+        console.warn(`Marketplace order ${orderId} introuvable pour session expirée`);
+        return;
+    }
+
+    // Idempotence interne : ne cancel que si toujours en pending_payment
+    if (order.status !== "pending_payment") {
+        console.log(
+            `Marketplace order ${orderId} en status '${order.status}', expire ignored`
+        );
+        return;
+    }
+
+    // 1. Cancel l'order
+    const { error: updOrderErr } = await admin
+        .from("marketplace_orders")
+        .update({
+            status: "cancelled",
+            cancelled_at: new Date().toISOString(),
+            refund_reason: "Session de paiement Stripe expirée (timeout 24h)",
+        })
+        .eq("id", orderId)
+        .eq("status", "pending_payment"); // garde-fou race
+
+    if (updOrderErr) {
+        throw new Error(`Failed to cancel order ${orderId}: ${updOrderErr.message}`);
+    }
+
+    // 2. Si l'order venait d'une offre, le listing était reserved → repasser active.
+    //    Update conditionnel : si quelqu'un a déjà bougé le listing entretemps, on touche pas.
+    if (order.offer_id) {
+        await admin
+            .from("marketplace_listings")
+            .update({ status: "active" })
+            .eq("id", order.listing_id)
+            .eq("status", "reserved");
+
+        // L'offre repasse à 'cancelled' (l'enum a la valeur).
+        await admin
+            .from("marketplace_offers")
+            .update({ status: "cancelled" })
+            .eq("id", order.offer_id);
+    }
+
+    // 3. Audit
+    await admin.from("audit_log").insert({
+        actor_user_id: null,
+        action: "marketplace_order_cancelled_session_expired",
+        target_type: "marketplace_orders",
+        target_id: orderId,
+        payload: {
+            stripe_session_id: session.id,
+            had_offer: Boolean(order.offer_id),
+        },
+    });
+
+    console.log(
+        `Marketplace order ${orderId} cancelled (session ${session.id} expired)`
+    );
+}
+
+async function handlePaymentIntentFailed(pi: Stripe.PaymentIntent) {
+    // Stripe Checkout permet aux buyers de retry sur la même session quand une
+    // carte est refusée. Cancel l'order au premier payment_failed casserait ce
+    // flow. On log + audit, on laisse `checkout.session.expired` faire le vrai
+    // cleanup (TTL 24h Stripe par défaut).
+    const senteContext = pi.metadata?.sente_context;
+    if (senteContext !== "marketplace_c2c") {
+        console.log(
+            `payment_intent.payment_failed ignored (context=${senteContext ?? "none"})`
+        );
+        return;
+    }
+
+    const orderId = pi.metadata?.order_id;
+    if (!orderId) {
+        console.warn(`Marketplace failed PI ${pi.id} sans order_id, skip audit`);
+        return;
+    }
+
+    const admin = createAdminClient();
+    const lastError = pi.last_payment_error;
+
+    await admin.from("audit_log").insert({
+        actor_user_id: null,
+        action: "marketplace_payment_intent_failed",
+        target_type: "marketplace_orders",
+        target_id: orderId,
+        payload: {
+            stripe_payment_intent_id: pi.id,
+            error_code: lastError?.code ?? null,
+            error_message: lastError?.message ?? null,
+            decline_code: lastError?.decline_code ?? null,
+        },
+    });
+
+    console.log(
+        `Marketplace PI ${pi.id} failed (order ${orderId}): ${lastError?.code ?? "unknown"}`
+    );
 }
