@@ -7,6 +7,7 @@ import {
     classifyWebhook,
     computeEventId,
 } from "@/lib/sendcloud/webhook";
+import {Json} from "@/lib/database.types";
 
 // =============================================================================
 // POST /api/sendcloud/webhook
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
         provider: "sendcloud",
         event_id: eventId,
         event_type: event.action ?? "parcel_status_changed",
-        payload: event,
+        payload: event as unknown as Json,
     });
 
     if (insertErr) {
