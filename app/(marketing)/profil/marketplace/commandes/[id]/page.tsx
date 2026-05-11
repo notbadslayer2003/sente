@@ -106,7 +106,7 @@ const TONE_BOX_CLS: Record<StatusTone, { box: string; eyebrow: string }> = {
 
 const CARRIER_LABELS: Record<string, string> = {
     mondial_relay: "Mondial Relay",
-    colissimo: "Colissimo",
+    bpost: "Bpost",
 };
 
 export default async function OrderDetailPage({

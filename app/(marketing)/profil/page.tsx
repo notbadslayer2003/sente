@@ -7,6 +7,8 @@ type SearchParams = Promise<{
     org_limit?: string; // ← nouveau
 }>;
 
+const ORG_LIMIT = 5;
+
 export default async function ProfilPage({
                                              searchParams,
                                          }: {
@@ -37,8 +39,11 @@ export default async function ProfilPage({
 
     const firstName = profile?.full_name?.split(" ")[0] ?? "pêcheur";
 
+    const orgCount = memberships?.length ?? 0;
+    const canCreateMore = orgCount < ORG_LIMIT;
+
     return (
-        <section className="bg-background min-h-screen pt-32 pb-24">
+        <section className="bg-background min-h-screen pb-24">
             <div className="mx-auto max-w-3xl px-6 sm:px-8 lg:px-12 space-y-16">
 
                 {/* En-tête */}
@@ -110,7 +115,6 @@ export default async function ProfilPage({
                     </div>
                 </div>
 
-                {/* Organisations */}
                 {memberships && memberships.length > 0 ? (
                     <div className="space-y-4">
                         <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
@@ -157,6 +161,33 @@ export default async function ProfilPage({
                                 );
                             })}
                         </ul>
+
+                        {/* CTAs d'ajout — visibles tant que limite pas atteinte */}
+                        {canCreateMore && (
+                            <div className="flex flex-wrap gap-6 pt-2">
+                                <Link
+                                    href="/inscrire-etang"
+                                    className="text-xs uppercase tracking-wide border-b border-foreground pb-0.5 hover:text-accent hover:border-accent transition-colors"
+                                >
+                                    + Inscrire un étang
+                                </Link>
+                                <Link
+                                    href="/inscrire-magasin"
+                                    className="text-xs uppercase tracking-wide border-b border-foreground pb-0.5 hover:text-accent hover:border-accent transition-colors"
+                                >
+                                    + Inscrire un magasin
+                                </Link>
+                                <p className="ml-auto text-xs text-muted-foreground">
+                                    {orgCount} / {ORG_LIMIT} organisations
+                                </p>
+                            </div>
+                        )}
+
+                        {!canCreateMore && (
+                            <p className="text-xs text-muted-foreground pt-2">
+                                Limite atteinte ({ORG_LIMIT} organisations max).
+                            </p>
+                        )}
                     </div>
                 ) : (
                     <div className="space-y-4">
@@ -165,7 +196,7 @@ export default async function ProfilPage({
                         </p>
                         <div className="border border-dashed border-border px-6 py-10 text-center space-y-4">
                             <p className="text-sm text-muted-foreground">
-                                Tu n'es encore associé à aucune organisation.
+                                Tu n&apos;es encore associé à aucune organisation.
                             </p>
                             <div className="flex justify-center gap-6">
                                 <Link

@@ -139,6 +139,7 @@ export default async function PostPage({params}: { params: Params }) {
                         postId={post.id}
                         comments={comments}
                         isLoggedIn={!!user}
+                        totalCount={post.comments_count}
                     />
                 </div>
             </div>

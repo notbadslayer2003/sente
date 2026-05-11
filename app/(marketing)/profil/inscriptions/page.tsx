@@ -52,7 +52,7 @@ export default async function MyInscriptionsPage() {
     const past = items.filter((i) => new Date(i.event_starts_at) < new Date());
 
     return (
-        <section className="bg-background min-h-screen pt-24 pb-16">
+        <section className="bg-background min-h-screen pb-16">
             <div className="mx-auto max-w-3xl px-6 sm:px-8">
                 <div className="mb-10">
                     <Link

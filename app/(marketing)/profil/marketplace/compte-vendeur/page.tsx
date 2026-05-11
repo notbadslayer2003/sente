@@ -46,10 +46,12 @@ export default async function MarketplaceKycPage({ searchParams }: PageProps) {
 
             <MarketplaceKycForm account={account} />
 
-            {/* Adresse d'expédition (indépendante du KYC) */}
-            <div className="border-t border-border pt-12">
-                <MarketplaceShippingAddressForm account={account} />
-            </div>
+            {/* Adresse d'expédition — visible uniquement après KYC validé */}
+            {account?.kyc_status === "verified" && (
+                <div className="border-t border-border pt-12">
+                    <MarketplaceShippingAddressForm account={account} />
+                </div>
+            )}
         </div>
     );
 }

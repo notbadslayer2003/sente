@@ -1,5 +1,5 @@
 import Link from "next/link";
-import {ExternalLink, Package, Truck, Store} from "lucide-react";
+import {ExternalLink, Truck, Store} from "lucide-react";
 import type {OrderDetail, OrderRefundEvent} from "@/lib/dal/orders";
 import {formatPriceEur} from "@/lib/utils/format";
 import { buildTrackingUrl, carrierLabel } from "@/lib/utils/tracking-links";

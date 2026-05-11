@@ -350,7 +350,7 @@ export function MarketplaceThreadConversation({
                     {showOfferForm ? (
                         <form
                             onSubmit={handleMakeOffer}
-                            className="flex flex-wrap items-center gap-3 p-4"
+                            className="flex flex-wrap items-end gap-3 p-4"
                         >
                             <label className="flex-1 min-w-[200px]">
                                 <span className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
@@ -369,7 +369,7 @@ export function MarketplaceThreadConversation({
                                     className="mt-1 w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-accent"
                                 />
                             </label>
-                            <div className="flex items-end gap-3">
+                            <div className="flex items-center gap-3">
                                 <button
                                     type="submit"
                                     disabled={isPending}

@@ -48,6 +48,12 @@ export async function SiteHeader() {
                         Magasins
                     </Link>
                     <Link
+                        href="/marketplace"
+                        className="hidden md:inline-flex text-foreground hover:text-accent transition-colors uppercase tracking-wide text-xs"
+                    >
+                        Marketplace
+                    </Link>
+                    <Link
                         href="/evenements"
                         className="hidden md:inline-flex text-foreground hover:text-accent transition-colors uppercase tracking-wide text-xs"
                     >

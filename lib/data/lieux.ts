@@ -62,11 +62,8 @@ function mapToLieu(row: any): Lieu | null {
             },
             recordKg: details.record_kg ? Number(details.record_kg) : undefined,
             postesCount: details.postes_count ?? 0,
-            photos: row.photos?.length
-                ? row.photos
-                : row.cover_image_url
-                    ? [row.cover_image_url]
-                    : [],
+            coverImageUrl: row.cover_image_url ?? row.photos?.[0] ?? undefined,
+            photos: row.photos ?? [],
             coordonnees: {
                 lat: row.lat ? Number(row.lat) : 0,
                 lng: row.lng ? Number(row.lng) : 0,

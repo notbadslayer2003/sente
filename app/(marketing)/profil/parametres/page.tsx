@@ -22,7 +22,7 @@ export default async function ParametresPage() {
         .single();
 
     return (
-        <section className="bg-background min-h-screen pt-32 pb-16">
+        <section className="bg-background min-h-screen pb-16">
             <div className="mx-auto max-w-3xl px-6 sm:px-8 lg:px-12 space-y-12">
                 <div>
                     <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">

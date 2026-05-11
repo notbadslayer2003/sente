@@ -55,7 +55,7 @@ export default async function ProfilSuivisPage() {
         .filter((o): o is FollowedOrg => o !== null);
 
     return (
-        <section className="bg-background min-h-screen pt-24 pb-16">
+        <section className="bg-background min-h-screen pb-16">
             <div className="mx-auto max-w-3xl px-6 sm:px-8">
                 <div className="mb-10">
                     <Link

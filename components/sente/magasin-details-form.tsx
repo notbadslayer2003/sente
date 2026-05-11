@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { updateMagasinDetailsAction } from "@/app/actions/org-details";
-import { SPECIALITES_MAGASIN } from "@/lib/constants/specialites";
-import { MultiSelectChips } from "@/components/sente/multi-select-chips";
-import { MarquesInput } from "@/components/sente/marques-input";
+import {useState, useTransition} from "react";
+import {updateMagasinDetailsAction} from "@/app/actions/org-details";
+import {SPECIALITES_MAGASIN} from "@/lib/constants/specialites";
+import {MultiSelectChips} from "@/components/sente/multi-select-chips";
+import {MarquesInput} from "@/components/sente/marques-input";
 
 export type MagasinDetails = {
     org_id: string;
@@ -13,7 +13,7 @@ export type MagasinDetails = {
     horaires_texte: string;
 };
 
-export function MagasinDetailsForm({ details }: { details: MagasinDetails }) {
+export function MagasinDetailsForm({details}: { details: MagasinDetails }) {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [isPending, startTransition] = useTransition();
@@ -61,7 +61,7 @@ export function MagasinDetailsForm({ details }: { details: MagasinDetails }) {
           </span>
                 </label>
                 <div className="mt-3">
-                    <MarquesInput name="marques" defaultValue={details.marques} />
+                    <MarquesInput name="marques" defaultValue={details.marques}/>
                 </div>
             </div>
 

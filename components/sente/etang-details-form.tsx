@@ -105,17 +105,7 @@ export function EtangDetailsForm({ details }: { details: EtangDetails }) {
                 />
             </div>
 
-            <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                    type="checkbox"
-                    name="reservation_active"
-                    defaultChecked={details.reservation_active}
-                    className="accent-[var(--accent)]"
-                />
-                <span className="text-sm">
-          Réservation en ligne active sur la fiche publique
-        </span>
-            </label>
+            {/* TODO: Add online booking */}
 
             <fieldset className="border-t border-border pt-8 space-y-5">
                 <legend className="text-xs uppercase tracking-[0.2em] text-muted-foreground">

@@ -40,7 +40,7 @@ export default async function LieuPage({params}: { params: Params }) {
             <section className="relative h-[55vh] min-h-[380px] w-full overflow-hidden">
                 {lieu.photos[0] && (
                     <Image
-                        src={lieu.photos[0]}
+                        src={lieu.coverImageUrl ?? lieu.photos[0]}
                         alt={lieu.nom}
                         fill
                         priority
@@ -176,13 +176,13 @@ export default async function LieuPage({params}: { params: Params }) {
                         )}
 
                         {/* Galerie */}
-                        {lieu.photos.length > 1 && (
+                        {lieu.photos.length > 0 && (
                             <div>
                                 <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
                                     Galerie
                                 </p>
                                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                    {lieu.photos.slice(1).map((url, i) => (
+                                    {lieu.photos.slice(0).map((url, i) => (
                                         <div
                                             key={url}
                                             className="relative aspect-square bg-secondary border border-border overflow-hidden"

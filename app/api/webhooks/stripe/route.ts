@@ -24,19 +24,38 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-    if (!webhookSecret) {
-        console.error("STRIPE_WEBHOOK_SECRET manquante");
+    const webhookSecretAccount = process.env.STRIPE_WEBHOOK_SECRET;
+    const webhookSecretConnect = process.env.STRIPE_WEBHOOK_SECRET_CONNECT;
+    if (!webhookSecretAccount && !webhookSecretConnect) {
+        console.error("Aucun STRIPE_WEBHOOK_SECRET configuré");
         return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
     }
 
     const stripe = getStripeClient();
-    let event: Stripe.Event;
+    let event: Stripe.Event | null = null;
+    let verificationError: Error | null = null;
 
-    try {
-        event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-    } catch (err) {
-        console.error("Webhook signature verification failed:", err);
+    // Tente d'abord le secret account (events plateforme)
+    if (webhookSecretAccount) {
+        try {
+            event = stripe.webhooks.constructEvent(body, sig, webhookSecretAccount);
+        } catch (err) {
+            verificationError = err as Error;
+        }
+    }
+
+    // Si échec, tente le secret connect (events comptes connectés)
+    if (!event && webhookSecretConnect) {
+        try {
+            event = stripe.webhooks.constructEvent(body, sig, webhookSecretConnect);
+            verificationError = null;
+        } catch (err) {
+            verificationError = err as Error;
+        }
+    }
+
+    if (!event) {
+        console.error("Webhook signature verification failed:", verificationError);
         return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 

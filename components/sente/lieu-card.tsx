@@ -1,22 +1,30 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Badge } from "@/components/ui/badge";
-import { ProvinceLabel, type Lieu } from "@/lib/schemas/lieu";
+import {Badge} from "@/components/ui/badge";
+import {ProvinceLabel, type Lieu} from "@/lib/schemas/lieu";
 
-export function LieuCard({ lieu }: { lieu: Lieu }) {
+export function LieuCard({lieu}: Readonly<{ lieu: Lieu }>) {
     return (
         <Link
             href={`/lieux/${lieu.slug}`}
             className="group block overflow-hidden rounded-lg border border-border bg-card transition-shadow hover:shadow-md"
         >
             <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-                <Image
-                    src={lieu.photos[0]}
-                    alt={lieu.nom}
-                    fill
-                    sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                />
+                {lieu.coverImageUrl ? (
+                    <Image
+                        src={lieu.coverImageUrl}
+                        alt={lieu.nom}
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center bg-muted">
+                        <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                            Photo à venir
+                        </span>
+                    </div>
+                )}
                 {lieu.reglement.noKill && (
                     <Badge className="absolute top-3 left-3 bg-primary text-primary-foreground border-0">
                         No-kill

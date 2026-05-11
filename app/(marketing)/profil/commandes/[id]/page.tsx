@@ -28,7 +28,7 @@ export default async function OrderBuyerDetailPage({
     if (!order) notFound();
 
     return (
-        <section className="bg-background min-h-screen pt-24 pb-16">
+        <section className="bg-background min-h-screen pb-16">
             <div className="mx-auto max-w-3xl px-6 sm:px-8 lg:px-12">
                 <Link
                     href="/profil/commandes"

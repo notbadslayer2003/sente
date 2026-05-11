@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import type { CommentTreeItem } from "@/lib/dal/posts";
+import {useState, useTransition} from "react";
+import {useRouter} from "next/navigation";
+import type {CommentTreeItem} from "@/lib/dal/posts";
 import {
     createCommentAction,
     updateCommentAction,
@@ -18,19 +18,21 @@ export function CommentsSection({
                                     postId,
                                     comments,
                                     isLoggedIn,
+                                    totalCount,
                                 }: {
     postId: string;
     comments: CommentTreeItem[];
     isLoggedIn: boolean;
+    totalCount: number;
 }) {
     return (
         <div id="comments" className="space-y-6">
             <h2 className="font-display text-xl tracking-tight">
-                Commentaires ({comments.length})
+                Commentaires ({totalCount})
             </h2>
 
             {isLoggedIn ? (
-                <CommentComposer postId={postId} parentId={null} />
+                <CommentComposer postId={postId} parentId={null}/>
             ) : (
                 <div className="border border-border bg-secondary/30 p-4 text-sm">
                     <Link
@@ -138,7 +140,7 @@ function CommentItem({
             } ${comment.is_hidden ? "opacity-50" : ""}`}
         >
             <div className="flex items-start gap-3">
-                <CommentAvatar author={comment.author} />
+                <CommentAvatar author={comment.author}/>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium leading-tight">
@@ -433,7 +435,8 @@ function CommentAvatar({
         .join("")
         .toUpperCase();
     return (
-        <div className="w-9 h-9 flex items-center justify-center bg-accent/10 text-accent text-[10px] font-medium uppercase tracking-wide shrink-0">
+        <div
+            className="w-9 h-9 flex items-center justify-center bg-accent/10 text-accent text-[10px] font-medium uppercase tracking-wide shrink-0">
             {initials || "?"}
         </div>
     );

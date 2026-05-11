@@ -58,7 +58,7 @@ export default async function MesCommandesPage() {
         .order("created_at", {ascending: false});
 
     return (
-        <section className="bg-background min-h-screen pt-24 pb-16">
+        <section className="bg-background min-h-screen pb-16">
             <div className="mx-auto max-w-3xl px-6 sm:px-8 lg:px-12">
                 <header className="mb-10">
                     <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">

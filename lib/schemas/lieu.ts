@@ -54,7 +54,7 @@ export const TarifSchema = z.object({
 export type Tarif = z.infer<typeof TarifSchema>;
 
 export const LieuSchema = z.object({
-    id: z.string().min(1), // TODO: passer en z.uuid() quand on branche Supabase
+    id: z.string().min(1),
     slug: z.string().min(1),
     nom: z.string(),
     description: z.string(),
@@ -68,7 +68,8 @@ export const LieuSchema = z.object({
     tarif: TarifSchema,
     recordKg: z.number().positive().optional(),
     postesCount: z.number().int().nonnegative(),
-    photos: z.array(z.string().url()).min(1),
+    coverImageUrl: z.string().url().optional(),       // ← ajout
+    photos: z.array(z.string().url()).default([]),    // ← min(1) retiré
     coordonnees: z.object({ lat: z.number(), lng: z.number() }),
     contact: z.object({
         email: z.string().email().optional(),
