@@ -2,7 +2,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
-type SearchParams = Promise<{ org_creation_failed?: string }>;
+type SearchParams = Promise<{
+    org_creation_failed?: string;
+    org_limit?: string; // ← nouveau
+}>;
 
 export default async function ProfilPage({
                                              searchParams,
@@ -11,6 +14,7 @@ export default async function ProfilPage({
 }) {
     const params = await searchParams;
     const orgFailed = params.org_creation_failed === "1";
+    const orgLimit = params.org_limit === "1";
 
     const supabase = await createClient();
     const {
@@ -55,6 +59,17 @@ export default async function ProfilPage({
                         </p>
                         <p className="mt-1 text-muted-foreground">
                             Contactez-nous depuis la page Contact, on règle ça rapidement.
+                        </p>
+                    </div>
+                )}
+
+                {orgLimit && (
+                    <div className="border border-destructive/30 bg-destructive/5 px-5 py-4 text-sm">
+                        <p className="font-medium text-destructive">
+                            Limite atteinte (5 organisations max par compte).
+                        </p>
+                        <p className="mt-1 text-muted-foreground">
+                            Contacte le support si tu as un cas spécifique.
                         </p>
                     </div>
                 )}

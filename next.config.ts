@@ -2,11 +2,16 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+    allowedDevOrigins: ['toric-besiegingly-gunnar.ngrok-free.dev'],
     images: {
         remotePatterns: [
             {
                 protocol: "https",
                 hostname: "images.unsplash.com",
+            },
+            {
+                protocol: "https",
+                hostname: "cdn.lasente.eu",
             },
             {
                 protocol: "https",

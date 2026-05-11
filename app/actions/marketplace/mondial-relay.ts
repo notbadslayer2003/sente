@@ -2,16 +2,14 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import {
-    searchRelayPoints,
-    type RelayPoint,
-} from "@/lib/mondial-relay/operations";
+import { searchServicePoints } from "@/lib/sendcloud/operations";
+import type { RelayPoint } from "@/lib/mondial-relay/operations";
 
 // =============================================================================
-// Server Actions : Mondial Relay
+// Recherche points relais Mondial Relay (via Sendcloud)
 // =============================================================================
-// Wrappers server-side qui exposent l'API MR au client. Auth required pour
-// éviter l'abuse anonyme (les buyers anonymes n'ont pas à interroger MR).
+// Nom conservé pour ne pas casser l'import côté composant. Derrière, on appelle
+// Sendcloud filtré sur carrier=mondial_relay.
 // =============================================================================
 
 type ActionResult<T = void> =
@@ -23,46 +21,36 @@ const searchSchema = z.object({
     postalCode: z.string().min(4).max(10),
 });
 
-/**
- * Recherche jusqu'à 10 points relais MR autour d'un code postal.
- * Le client utilise ça depuis le composant RelayPointPicker pendant le checkout.
- */
 export async function searchMondialRelayRelays(input: {
     country: "BE" | "FR";
     postalCode: string;
 }): Promise<ActionResult<RelayPoint[]>> {
     const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-        return {
-            ok: false,
-            error: { code: "UNAUTHENTICATED", message: "Non connecté" },
-        };
+        return { ok: false, error: { code: "UNAUTHENTICATED", message: "Non connecté" } };
     }
 
     const parsed = searchSchema.safeParse(input);
     if (!parsed.success) {
-        return {
-            ok: false,
-            error: { code: "INVALID_INPUT", message: parsed.error.message },
-        };
+        return { ok: false, error: { code: "INVALID_INPUT", message: parsed.error.message } };
     }
 
     try {
-        const relays = await searchRelayPoints(parsed.data);
-        return { ok: true, data: relays };
+        const points = await searchServicePoints({
+            country: parsed.data.country,
+            postalCode: parsed.data.postalCode,
+            carrier: "mondial_relay",
+        });
+        // ServicePoint ⊃ RelayPoint (champs en plus ignorés par l'UI)
+        return { ok: true, data: points };
     } catch (err) {
         console.error("searchMondialRelayRelays failed:", err);
         return {
             ok: false,
             error: {
                 code: "MR_FAILED",
-                message:
-                    err instanceof Error
-                        ? err.message
-                        : "Erreur lors de la recherche Mondial Relay",
+                message: err instanceof Error ? err.message : "Erreur Sendcloud",
             },
         };
     }

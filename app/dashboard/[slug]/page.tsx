@@ -27,6 +27,27 @@ export default async function DashboardOverviewPage({
         .eq("id", ctx.org.id)
         .single();
 
+    // ← nouveau : charger reglement + especes pour les étangs
+    let etangReglementOk = true; // true par défaut (magasin n'a pas de règlement)
+    let etangEspecesOk = true;
+    if (ctx.org.org_type === "etang") {
+        const { data: details } = await supabase
+            .from("etang_details")
+            .select("reglement, especes")
+            .eq("organization_id", ctx.org.id)
+            .single();
+
+        const r = details?.reglement as Record<string, unknown> | null;
+        etangReglementOk =
+            !!r &&
+            typeof r.noKill === "boolean" &&
+            typeof r.baitboatAutorise === "boolean" &&
+            typeof r.nuitAutorisee === "boolean" &&
+            typeof r.nbCannesMax === "number" &&
+            typeof r.permisRequis === "boolean";
+        etangEspecesOk = (details?.especes?.length ?? 0) >= 1;
+    }
+
     let completion = 0;
     let totalChecks = 0;
     const checks = {
@@ -35,6 +56,10 @@ export default async function DashboardOverviewPage({
         contact: !!(org?.contact_email || org?.contact_phone),
         cover: !!org?.cover_image_url,
         gallery: (org?.photos?.length ?? 0) >= 1,
+        // ← nouveaux (étang only, true par défaut pour magasin)
+        ...(ctx.org.org_type === "etang"
+            ? { reglement: etangReglementOk, especes: etangEspecesOk }
+            : {}),
     };
     if (org) {
         const allChecks = Object.values(checks);
@@ -44,7 +69,12 @@ export default async function DashboardOverviewPage({
         totalChecks = allChecks.length;
     }
 
-    const minimalReady = checks.description && checks.address && checks.contact;
+    const minimalReady =
+        checks.description &&
+        checks.address &&
+        checks.contact &&
+        (ctx.org.org_type !== "etang" ||
+            ("reglement" in checks && checks.reglement && checks.especes));
     const submittable = minimalReady && ctx.org.status === "draft";
 
     // Stock alerts (uniquement pour magasins actifs avec produits)
@@ -104,6 +134,12 @@ export default async function DashboardOverviewPage({
                             done={checks.gallery}
                             label="Au moins une photo de galerie"
                         />
+                        {ctx.org.org_type === "etang" && "reglement" in checks && (
+                            <>
+                                <CheckItem done={checks.reglement ?? false} label="Règlement de l'étang" />
+                                <CheckItem done={checks.especes ?? false} label="Au moins une espèce" />
+                            </>
+                        )}
                     </ul>
 
                     <div className="mt-8 flex flex-wrap gap-4 items-start">

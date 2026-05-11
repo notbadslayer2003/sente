@@ -24,6 +24,14 @@ const EspecesEnum = z.enum([
     "blanc",
 ]);
 
+const ReglementSchema = z.object({
+    noKill: z.preprocess((v) => v === "on" || v === true, z.boolean()),
+    baitboatAutorise: z.preprocess((v) => v === "on" || v === true, z.boolean()),
+    nuitAutorisee: z.preprocess((v) => v === "on" || v === true, z.boolean()),
+    nbCannesMax: z.coerce.number().int().min(1).max(10),
+    permisRequis: z.preprocess((v) => v === "on" || v === true, z.boolean()),
+});
+
 const EtangDetailsSchema = z.object({
     org_id: z.string().uuid(),
     especes: z.array(EspecesEnum).max(15),
@@ -51,6 +59,7 @@ const EtangDetailsSchema = z.object({
         (v) => v === "on" || v === true,
         z.boolean()
     ),
+    reglement: ReglementSchema, // ← nouveau
 });
 
 export async function updateEtangDetailsAction(
@@ -70,6 +79,13 @@ export async function updateEtangDetailsAction(
             ? Math.round(Number(tarifAnneeEur) * 100)
             : "";
 
+    const reglement = {
+        noKill: formData.get("reglement_noKill"),
+        baitboatAutorise: formData.get("reglement_baitboatAutorise"),
+        nuitAutorisee: formData.get("reglement_nuitAutorisee"),
+        nbCannesMax: formData.get("reglement_nbCannesMax") ?? "",
+        permisRequis: formData.get("reglement_permisRequis"),
+    };
     const raw = {
         org_id: formData.get("org_id"),
         especes,
@@ -79,6 +95,7 @@ export async function updateEtangDetailsAction(
         tarif_journee_cents,
         tarif_annee_cents,
         reservation_active: formData.get("reservation_active"),
+        reglement,
     };
 
     const parsed = EtangDetailsSchema.safeParse(raw);

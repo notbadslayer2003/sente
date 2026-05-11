@@ -2,30 +2,28 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createShipmentLabel } from "@/lib/mondial-relay/operations";
+import {
+    type SendcloudCarrier, createShipment, findShippingOption,
+} from "@/lib/sendcloud/operations";
 import { uploadShippingLabel } from "@/lib/storage/marketplace-r2";
 import { getResendClient } from "@/lib/email/client";
 import { buildMarketplaceShippedNotificationEmail } from "@/lib/email/templates/marketplace-shipped-notification";
 
 // =============================================================================
-// Server Action : markOrderAsShipped
+// Server Action : markOrderAsShipped (Sendcloud)
 // =============================================================================
-// Flow seller :
-//   1. Auth + ownership (seller_user_id == auth.uid())
-//   2. Status check (paid_awaiting_shipment uniquement)
-//   3. Idempotence : si tracking_number déjà set → no-op
-//   4. Vérif carrier supporté + relay_point_id présent
-//   5. Vérif shipping_from_* complet sur seller_account
-//   6. Charge buyer email (auth.users via admin)
-//   7. Appel MR V2 createShipmentLabel
-//   8. Download PDF depuis labelUrl MR
-//   9. Upload R2 (bucket privé) via uploadShippingLabel
-//  10. UPDATE order : status='shipped', tracking, label_path, shipped_at
-//      Garde-fou : eq("status","paid_awaiting_shipment") pour idempotence
-//  11. INSERT audit_log
-//  12. Mail buyer (best effort, non-bloquant)
+// Flow seller : auth → status check → vérifs prérequis → Sendcloud (find method
+// + create parcel + label) → download PDF → upload R2 → UPDATE order → audit →
+// mail buyer.
+//
+// DETTE TECHNIQUE — pas de lock pessimiste contre double-clic seller :
+// si seller double-clique sur "Marquer expédié", deux étiquettes Sendcloud
+// peuvent être générées (et facturées). Le garde-fou DB protège la table mais
+// pas l'API amont. À durcir avec un état `shipping_in_progress` sur l'enum +
+// trigger SQL avant le live.
 // =============================================================================
 
 type ActionResult<T = void> =
@@ -35,22 +33,6 @@ type ActionResult<T = void> =
 const markShippedSchema = z.object({
     orderId: z.string().uuid(),
 });
-
-/**
- * Normalise un téléphone pour MR V2.
- * MR exige un format strict par pays (cf doc V2.7.1) :
- *   BE : ^[4]?[0-9]{8}$ (mobile = 4 + 8 chiffres)
- *   FR : ^[1-9][0-9]{8}$ (9 chiffres sans 0 préfixe)
- * On strip espaces, séparateurs, code pays international, et le 0 préfixe national.
- */
-function normalizePhoneForMR(phone: string, country: "BE" | "FR"): string {
-    let p = phone.replace(/[\s.\-()+]/g, "");
-    if (p.startsWith("00")) p = p.slice(2);
-    if (country === "BE" && p.startsWith("32")) p = p.slice(2);
-    if (country === "FR" && p.startsWith("33")) p = p.slice(2);
-    if (p.startsWith("0")) p = p.slice(1);
-    return p;
-}
 
 export async function markOrderAsShipped(input: {
     orderId: string;
@@ -68,7 +50,7 @@ export async function markOrderAsShipped(input: {
 
     const admin = createAdminClient();
 
-    // --- 1. Charge l'order avec join listing
+    // --- 1. Charge order
     const { data: order, error: orderErr } = await admin
         .from("marketplace_orders")
         .select(`
@@ -88,7 +70,7 @@ export async function markOrderAsShipped(input: {
         return { ok: false, error: { code: "FORBIDDEN", message: "Tu n'es pas le vendeur de cette commande" } };
     }
 
-    // --- 2. Idempotence : déjà expédié ?
+    // --- 2. Idempotence
     if (order.status === "shipped" && order.tracking_number) {
         return { ok: true, data: { tracking_number: order.tracking_number } };
     }
@@ -103,20 +85,18 @@ export async function markOrderAsShipped(input: {
     }
 
     // --- 3. Vérif carrier
-    if (order.shipping_carrier !== "mondial_relay") {
+    const carrier = order.shipping_carrier as string;
+    if (carrier !== "mondial_relay" && carrier !== "bpost") {
         return {
             ok: false,
-            error: {
-                code: "CARRIER_NOT_SUPPORTED",
-                message: "Seul Mondial Relay est implémenté pour l'instant",
-            },
+            error: { code: "CARRIER_NOT_SUPPORTED", message: `Carrier '${carrier}' non supporté` },
         };
     }
-    if (!order.relay_point_id) {
+    if (carrier === "mondial_relay" && !order.relay_point_id) {
         return { ok: false, error: { code: "NO_RELAY", message: "Point relais manquant sur la commande" } };
     }
 
-    // --- 4. Charge seller_account (shipping_from_* + nom légal pour Sender étiquette)
+    // --- 4. Charge seller_account
     const { data: sellerAccount } = await admin
         .from("marketplace_seller_accounts")
         .select(`
@@ -150,14 +130,11 @@ export async function markOrderAsShipped(input: {
     if (!sellerAccount.dac7_legal_first_name || !sellerAccount.dac7_legal_last_name) {
         return {
             ok: false,
-            error: {
-                code: "INCOMPLETE_KYC",
-                message: "Nom légal KYC manquant. Termine ton inscription vendeur.",
-            },
+            error: { code: "INCOMPLETE_KYC", message: "Nom légal KYC manquant. Termine ton inscription vendeur." },
         };
     }
 
-    // --- 5. Charge buyer email (depuis auth.users via admin)
+    // --- 5. Charge buyer email
     const { data: authBuyer } = await admin.auth.admin.getUserById(order.buyer_user_id);
     const buyerEmail = authBuyer?.user?.email ?? null;
     if (!buyerEmail) {
@@ -168,67 +145,76 @@ export async function markOrderAsShipped(input: {
     const listingTitle = listing?.title ?? "Annonce";
     const weightGrams = Math.max(listing?.weight_grams ?? 1000, 100);
 
-    // --- 6. Création étiquette MR V2
     const sellerCountry = sellerAccount.shipping_from_country as "BE" | "FR";
     const buyerCountry = order.shipping_country as "BE" | "FR";
 
-    let labelResult: { expeditionNumber: string; labelUrl: string };
+// --- 6. Sendcloud V3 : find option + create shipment + label
+    const isTestMode =
+        process.env.SENDCLOUD_TEST_MODE === "true" &&
+        Boolean(process.env.SENDCLOUD_TEST_SHIPPING_OPTION_CODE);
+
+    let shipmentResult: Awaited<ReturnType<typeof createShipment>>;
+    let labelCostCents: number;
+    let shippingOptionCode: string;
+
     try {
-        labelResult = await createShipmentLabel({
-            // OrderNo MR : max 15 chars, [0-9A-Z_ -]
-            dossier: order.id.replace(/-/g, "").slice(0, 15).toUpperCase(),
+        if (isTestMode) {
+            shippingOptionCode = process.env.SENDCLOUD_TEST_SHIPPING_OPTION_CODE!;
+            labelCostCents = 0;
+            console.log(
+                `[markOrderAsShipped] TEST MODE — using ${shippingOptionCode}`
+            );
+        } else {
+            const option = await findShippingOption({
+                carrier: carrier as SendcloudCarrier,
+                weightGrams,
+                fromCountry: sellerCountry,
+                toCountry: buyerCountry,
+                requiresServicePoint: carrier === "mondial_relay",
+            });
+            shippingOptionCode = option.code;
+            labelCostCents = option.priceCents;
+        }
+
+        shipmentResult = await createShipment({
+            orderNumber: order.id.replace(/-/g, "").slice(0, 15).toUpperCase(),
             sender: {
-                name: `${sellerAccount.dac7_legal_first_name} ${sellerAccount.dac7_legal_last_name}`.toUpperCase(),
-                line2: sellerAccount.shipping_from_line1!,
-                city: sellerAccount.shipping_from_city!,
+                name: `${sellerAccount.dac7_legal_first_name} ${sellerAccount.dac7_legal_last_name}`,
+                address: sellerAccount.shipping_from_line1!,
                 postalCode: sellerAccount.shipping_from_postal_code!,
+                city: sellerAccount.shipping_from_city!,
                 country: sellerCountry,
-                phone: normalizePhoneForMR(sellerAccount.shipping_from_phone!, sellerCountry),
+                phone: sellerAccount.shipping_from_phone!,
                 email: user.email ?? "",
             },
             recipient: {
-                name: order.shipping_full_name.toUpperCase(),
-                line1: order.shipping_line2 ?? undefined,
-                line2: order.shipping_line1,
-                city: order.shipping_city,
+                name: order.shipping_full_name,
+                address: order.shipping_line1,
                 postalCode: order.shipping_postal_code,
+                city: order.shipping_city,
                 country: buyerCountry,
-                phone: order.shipping_phone
-                    ? normalizePhoneForMR(order.shipping_phone, buyerCountry)
-                    : "",
+                phone: order.shipping_phone ?? undefined,
                 email: buyerEmail,
             },
             weightGrams,
-            relay: { country: buyerCountry, id: order.relay_point_id },
-            description: listingTitle.slice(0, 40),
+            servicePointId: isTestMode ? undefined : (order.relay_point_id ?? undefined),
+            shippingOptionCode,
         });
     } catch (err) {
+        Sentry.captureException(err, {
+            tags: { source: "markOrderAsShipped.sendcloud", orderId: order.id },
+        });
         return {
             ok: false,
             error: {
-                code: "MR_LABEL_FAILED",
-                message: err instanceof Error ? err.message : "Création étiquette MR échouée",
+                code: "SENDCLOUD_FAILED",
+                message: err instanceof Error ? err.message : "Création shipment Sendcloud échouée",
             },
         };
     }
 
-    // --- 7. Download PDF depuis MR
-    let pdfBuffer: Buffer;
-    try {
-        const pdfRes = await fetch(labelResult.labelUrl);
-        if (!pdfRes.ok) {
-            throw new Error(`MR PDF HTTP ${pdfRes.status} ${pdfRes.statusText}`);
-        }
-        pdfBuffer = Buffer.from(await pdfRes.arrayBuffer());
-    } catch (err) {
-        return {
-            ok: false,
-            error: {
-                code: "PDF_DOWNLOAD_FAILED",
-                message: err instanceof Error ? err.message : "Téléchargement PDF échoué",
-            },
-        };
-    }
+    // --- 7. Download PDF étiquette
+    const pdfBuffer = shipmentResult.labelPdfBuffer;
 
     // --- 8. Upload R2 privé
     let storageKey: string;
@@ -236,6 +222,10 @@ export async function markOrderAsShipped(input: {
         const uploadRes = await uploadShippingLabel(order.id, pdfBuffer);
         storageKey = uploadRes.key;
     } catch (err) {
+        Sentry.captureException(err, {
+            tags: { source: "markOrderAsShipped.r2", orderId: order.id },
+            extra: { sendcloudParcelId: shipmentResult.parcelId },
+        });
         return {
             ok: false,
             error: {
@@ -245,25 +235,28 @@ export async function markOrderAsShipped(input: {
         };
     }
 
-    // --- 9. UPDATE order avec garde-fou status (idempotence forte)
+    // --- 9. UPDATE order avec garde-fou status (idempotence DB)
     const now = new Date().toISOString();
     const { error: updateErr, data: updated } = await admin
         .from("marketplace_orders")
         .update({
             status: "shipped",
-            tracking_number: labelResult.expeditionNumber,
+            tracking_number: shipmentResult.trackingNumber,
             shipping_label_storage_path: storageKey,
+            shipping_label_cost_cents: labelCostCents,
+            sendcloud_parcel_id: shipmentResult.parcelId,
             shipped_at: now,
         })
         .eq("id", order.id)
-        .eq("status", "paid_awaiting_shipment") // garde-fou : si concurrent run, l'autre a déjà fait
+        .eq("status", "paid_awaiting_shipment")
         .select("id")
         .single();
 
     if (updateErr || !updated) {
-        // Rollback R2 : on a uploadé une étiquette qu'on ne va plus utiliser ;
-        // mais on ne supprime pas car l'autre run a peut-être déjà persisté
-        // le même chemin (idempotent côté R2 : key fixe shipping-labels/{order_id}.pdf).
+        Sentry.captureException(updateErr ?? new Error("DB update failed after Sendcloud success"), {
+            tags: { source: "markOrderAsShipped.db", orderId: order.id },
+            extra: { sendcloudParcelId: shipmentResult.parcelId, trackingNumber: shipmentResult.trackingNumber },
+        });
         return {
             ok: false,
             error: {
@@ -280,24 +273,29 @@ export async function markOrderAsShipped(input: {
         target_type: "marketplace_order",
         target_id: order.id,
         payload: {
-            tracking_number: labelResult.expeditionNumber,
+            tracking_number: shipmentResult.trackingNumber,
+            sendcloud_parcel_id: shipmentResult.parcelId,
             shipping_label_storage_path: storageKey,
-            carrier: "mondial_relay",
+            shipping_label_cost_cents: labelCostCents,
+            carrier,
             relay_point_id: order.relay_point_id,
         },
     });
 
-    // --- 11. Mail buyer (best-effort, non bloquant)
+    // --- 11. Mail buyer (best-effort)
     try {
         const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "";
-        const trackingUrl = `https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition=${labelResult.expeditionNumber}`;
+        const trackingUrl =
+            carrier === "mondial_relay"
+                ? `https://www.mondialrelay.fr/suivi-de-colis/?numeroExpedition=${shipmentResult.trackingNumber}`
+                : `https://track.bpost.cloud/btr/web/#/search?itemCode=${shipmentResult.trackingNumber}`;
         const orderUrl = `${baseUrl}/profil/marketplace/commandes/${order.id}`;
 
         const { text, html } = buildMarketplaceShippedNotificationEmail({
             buyerFullName: order.shipping_full_name,
             sellerFullName: `${sellerAccount.dac7_legal_first_name} ${sellerAccount.dac7_legal_last_name}`,
             listingTitle,
-            trackingNumber: labelResult.expeditionNumber,
+            trackingNumber: shipmentResult.trackingNumber,
             trackingUrl,
             relayPointId: order.relay_point_id,
             orderUrl,
@@ -312,15 +310,14 @@ export async function markOrderAsShipped(input: {
             html,
         });
     } catch (err) {
-        // L'expédition reste validée même si le mail plante : on log et on continue
         console.error("[markOrderAsShipped] mail buyer failed (non-blocking):", err);
+        Sentry.captureException(err, {
+            tags: { source: "markOrderAsShipped.email", orderId: order.id },
+        });
     }
 
     revalidatePath(`/profil/marketplace/commandes/${order.id}`);
     revalidatePath(`/profil/marketplace/ventes`);
 
-    return {
-        ok: true,
-        data: { tracking_number: labelResult.expeditionNumber },
-    };
+    return { ok: true, data: { tracking_number: shipmentResult.trackingNumber } };
 }

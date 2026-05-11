@@ -63,11 +63,11 @@ export async function POST(req: NextRequest) {
     const { error: insertError } = await admin
         .from("webhook_events")
         .insert({
-            stripe_event_id: event.id,
+            provider: "stripe",
+            event_id: event.id,
             event_type: event.type,
             payload: event as any,
         });
-
     let isReplay = false;
     if (insertError) {
         if (insertError.code !== "23505") {
@@ -78,7 +78,8 @@ export async function POST(req: NextRequest) {
         const { data: existing } = await admin
             .from("webhook_events")
             .select("processed_at")
-            .eq("stripe_event_id", event.id)
+            .eq("provider", "stripe")
+            .eq("event_id", event.id)
             .single();
 
         if (existing?.processed_at) {
@@ -95,7 +96,8 @@ export async function POST(req: NextRequest) {
         await admin
             .from("webhook_events")
             .update({ error_message: null })
-            .eq("stripe_event_id", event.id);
+            .eq("provider", "stripe")
+            .eq("event_id", event.id);
     }
 
     try {
@@ -140,7 +142,8 @@ export async function POST(req: NextRequest) {
                 processed_at: new Date().toISOString(),
                 error_message: null,
             })
-            .eq("stripe_event_id", event.id);
+            .eq("provider", "stripe")
+            .eq("event_id", event.id);
     } catch (err) {
         console.error(
             `Error processing webhook ${event.id}${isReplay ? " (replay)" : ""}:`,
@@ -151,7 +154,8 @@ export async function POST(req: NextRequest) {
             .update({
                 error_message: err instanceof Error ? err.message : String(err),
             })
-            .eq("stripe_event_id", event.id);
+            .eq("provider", "stripe")
+            .eq("event_id", event.id);
         // 500 → Stripe retry plus tard, on retombera dans le replay.
         return NextResponse.json({ error: "Processing failed" }, { status: 500 });
     }

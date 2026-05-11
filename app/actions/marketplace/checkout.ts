@@ -15,10 +15,12 @@ import {
 } from "@/lib/marketplace/shipping";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripeClient } from "@/lib/stripe/client";
+
 // =============================================================================
-// Server Actions : checkout (preview quote uniquement à 7a)
+// Server Actions : checkout marketplace c2c
 // =============================================================================
-// La création réelle d'order + PaymentIntent vient en 7b avec l'UI checkout.
+// Pricing dynamique via Sendcloud — le shipping cost est résolu en temps réel
+// selon poids + pays from/to.
 // =============================================================================
 
 type ActionResult<T = void> =
@@ -27,12 +29,14 @@ type ActionResult<T = void> =
 
 const quoteFromListingSchema = z.object({
     listingId: z.string().uuid(),
-    carrier: z.enum(["mondial_relay", "colissimo"]).optional(),
+    carrier: z.enum(["mondial_relay", "bpost"]).optional(),
+    toCountry: z.enum(["BE", "FR"]).optional(),
 });
 
 const quoteFromOfferSchema = z.object({
     offerId: z.string().uuid(),
-    carrier: z.enum(["mondial_relay", "colissimo"]).optional(),
+    carrier: z.enum(["mondial_relay", "bpost"]).optional(),
+    toCountry: z.enum(["BE", "FR"]).optional(),
 });
 
 export type CheckoutQuoteData = {
@@ -40,13 +44,31 @@ export type CheckoutQuoteData = {
     listing_title: string;
     seller_user_id: string;
     weight_grams: number;
-    base_price_cents: number; // prix listing OU prix offre acceptée
+    base_price_cents: number;
     is_from_offer: boolean;
     offer_id: string | null;
     shipping_options: ShippingOption[];
     selected_carrier: ShippingCarrier | null;
-    pricing: PricingBreakdown | null; // null si pas encore de carrier choisi
+    pricing: PricingBreakdown | null;
 };
+
+// -----------------------------------------------------------------------------
+// Helper : résout fromCountry (seller) + toCountry (buyer ou défaut national)
+// -----------------------------------------------------------------------------
+async function resolveShippingCountries(
+    sellerUserId: string,
+    explicitToCountry: "BE" | "FR" | undefined
+): Promise<{ fromCountry: "BE" | "FR"; toCountry: "BE" | "FR" }> {
+    const admin = createAdminClient();
+    const { data } = await admin
+        .from("marketplace_seller_accounts")
+        .select("shipping_from_country")
+        .eq("user_id", sellerUserId)
+        .maybeSingle();
+    const fromCountry = (data?.shipping_from_country ?? "BE") as "BE" | "FR";
+    const toCountry = explicitToCountry ?? fromCountry;
+    return { fromCountry, toCountry };
+}
 
 // =============================================================================
 // Action : getCheckoutQuoteFromListing (achat direct au prix listing)
@@ -55,6 +77,7 @@ export type CheckoutQuoteData = {
 export async function getCheckoutQuoteFromListing(input: {
     listingId: string;
     carrier?: ShippingCarrier;
+    toCountry?: "BE" | "FR";
 }): Promise<ActionResult<CheckoutQuoteData>> {
     const parsed = quoteFromListingSchema.safeParse(input);
     if (!parsed.success) {
@@ -77,32 +100,30 @@ export async function getCheckoutQuoteFromListing(input: {
         return { ok: false, error: { code: "LISTING_NOT_FOUND", message: "Annonce introuvable" } };
     }
     if (listing.seller_user_id === user.id) {
-        return {
-            ok: false,
-            error: { code: "SELF_PURCHASE", message: "Tu ne peux pas acheter ta propre annonce" },
-        };
+        return { ok: false, error: { code: "SELF_PURCHASE", message: "Tu ne peux pas acheter ta propre annonce" } };
     }
     if (listing.status !== "active") {
-        return {
-            ok: false,
-            error: { code: "LISTING_UNAVAILABLE", message: "Annonce non disponible à l'achat" },
-        };
+        return { ok: false, error: { code: "LISTING_UNAVAILABLE", message: "Annonce non disponible à l'achat" } };
     }
     if (!isShippableWeight(listing.weight_grams)) {
-        return {
-            ok: false,
-            error: {
-                code: "INVALID_WEIGHT",
-                message: "Poids hors range expédiable (>30kg)",
-            },
-        };
+        return { ok: false, error: { code: "INVALID_WEIGHT", message: "Poids hors range expédiable (>30kg)" } };
     }
 
-    const shippingOptions = getShippingOptions(listing.weight_grams);
+    const { fromCountry, toCountry } = await resolveShippingCountries(
+        listing.seller_user_id,
+        parsed.data.toCountry
+    );
+
+    const shippingOptions = await getShippingOptions(listing.weight_grams, fromCountry, toCountry);
     let pricing: PricingBreakdown | null = null;
 
     if (parsed.data.carrier) {
-        const shippingCents = getShippingRate(parsed.data.carrier, listing.weight_grams);
+        const shippingCents = await getShippingRate(
+            parsed.data.carrier,
+            listing.weight_grams,
+            fromCountry,
+            toCountry
+        );
         if (shippingCents !== null) {
             pricing = calculatePricing(listing.price_cents, shippingCents);
         }
@@ -132,6 +153,7 @@ export async function getCheckoutQuoteFromListing(input: {
 export async function getCheckoutQuoteFromOffer(input: {
     offerId: string;
     carrier?: ShippingCarrier;
+    toCountry?: "BE" | "FR";
 }): Promise<ActionResult<CheckoutQuoteData>> {
     const parsed = quoteFromOfferSchema.safeParse(input);
     if (!parsed.success) {
@@ -194,11 +216,21 @@ export async function getCheckoutQuoteFromOffer(input: {
         };
     }
 
-    const shippingOptions = getShippingOptions(listing.weight_grams);
+    const { fromCountry, toCountry } = await resolveShippingCountries(
+        listing.seller_user_id,
+        parsed.data.toCountry
+    );
+
+    const shippingOptions = await getShippingOptions(listing.weight_grams, fromCountry, toCountry);
     let pricing: PricingBreakdown | null = null;
 
     if (parsed.data.carrier) {
-        const shippingCents = getShippingRate(parsed.data.carrier, listing.weight_grams);
+        const shippingCents = await getShippingRate(
+            parsed.data.carrier,
+            listing.weight_grams,
+            fromCountry,
+            toCountry
+        );
         if (shippingCents !== null) {
             pricing = calculatePricing(offer.amount_cents, shippingCents);
         }
@@ -221,12 +253,16 @@ export async function getCheckoutQuoteFromOffer(input: {
     };
 }
 
+// =============================================================================
+// Action : createOrderAndCheckoutSession
+// =============================================================================
+
 const createCheckoutSchema = z
     .object({
         listingId: z.string().uuid().optional(),
         offerId: z.string().uuid().optional(),
         addressId: z.string().uuid(),
-        carrier: z.enum(["mondial_relay", "colissimo"]),
+        carrier: z.enum(["mondial_relay", "bpost"]),
         relayPointId: z.string().max(50).nullable().default(null),
     })
     .refine((d) => Boolean(d.listingId) !== Boolean(d.offerId), {
@@ -240,15 +276,13 @@ export type CreateCheckoutResult = {
 
 const CARRIER_LABELS: Record<ShippingCarrier, string> = {
     mondial_relay: "Mondial Relay",
-    colissimo: "Colissimo",
+    bpost: "bpost",
 };
 
 /**
  * Crée un order pending_payment + une Stripe Checkout Session.
  * Idempotent : si un order pending existe avec une session ouverte, on retourne
  * l'URL de cette session.
- *
- * Retourne l'URL `checkout.stripe.com` à laquelle rediriger le buyer.
  */
 export async function createOrderAndCheckoutSession(input: {
     listingId?: string;
@@ -367,10 +401,27 @@ export async function createOrderAndCheckoutSession(input: {
         return { ok: false, error: { code: "INVALID_WEIGHT", message: "Poids hors range" } };
     }
 
-    // --- 4. Tarif shipping
-    const shippingCents = getShippingRate(parsed.data.carrier, listingFull.weight_grams);
+    // --- 4. Tarif shipping (dynamique via Sendcloud)
+    // toCountry = pays de l'adresse buyer choisie ; fromCountry = pays seller
+    const { fromCountry, toCountry } = await resolveShippingCountries(
+        listingFull.seller_user_id,
+        address.country as "BE" | "FR"
+    );
+
+    const shippingCents = await getShippingRate(
+        parsed.data.carrier,
+        listingFull.weight_grams,
+        fromCountry,
+        toCountry
+    );
     if (shippingCents === null) {
-        return { ok: false, error: { code: "INVALID_CARRIER", message: "Tarif introuvable" } };
+        return {
+            ok: false,
+            error: {
+                code: "INVALID_CARRIER",
+                message: `Tarif Sendcloud introuvable pour ${parsed.data.carrier} ${fromCountry}→${toCountry}`,
+            },
+        };
     }
 
     if (parsed.data.carrier === "mondial_relay" && !parsed.data.relayPointId) {
@@ -388,12 +439,7 @@ export async function createOrderAndCheckoutSession(input: {
     //
     // stripe_payouts_enabled non bloquant au checkout : Stripe peut mettre
     // plusieurs jours à activer payouts après onboarding, on rebloque au
-    // release T+48h (étape 10) si nécessaire.
-    //
-    // Pourquoi admin client ici : la table marketplace_seller_accounts contient
-    // des champs DAC7 sensibles, sa RLS SELECT n'autorise que le user lui-même.
-    // On lit en service_role pour ce check de service côté serveur — aucune
-    // donnée seller n'est renvoyée au client, on retourne juste un bool effectif.
+    // release T+48h si nécessaire.
     const adminEligibility = createAdminClient();
     const { data: sellerAccount } = await adminEligibility
         .from("marketplace_seller_accounts")

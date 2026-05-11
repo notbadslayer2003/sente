@@ -145,7 +145,7 @@ async function processOrder(order: Order): Promise<void> {
 
     let paymentId: string;
     if (existingPayment) {
-        if (existingPayment.status === "succeeded" && existingPayment.stripe_transfer_id) {
+        if (existingPayment.status === "paid" && existingPayment.stripe_transfer_id) {
             // Edge case : payment déjà succeeded mais order pas update (crash entre les deux).
             // On va juste sync l'order avec le transfer existant.
             await syncOrderFromPayment(order.id, existingPayment.stripe_transfer_id);
@@ -207,7 +207,7 @@ async function processOrder(order: Order): Promise<void> {
     await supabase
         .from("payments")
         .update({
-            status: "succeeded",
+            status: "paid",
             stripe_transfer_id: transfer.id,
             raw_event: transfer as unknown as Record<string, unknown>,
         })

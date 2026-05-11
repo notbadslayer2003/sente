@@ -6,6 +6,14 @@ import { MagasinDetailsForm } from "@/components/sente/magasin-details-form";
 
 type Params = Promise<{ slug: string }>;
 
+type ReglementDb = {
+    no_kill?: boolean;
+    baitboat_autorise?: boolean;
+    nuit_autorisee?: boolean;
+    nb_cannes_max?: number | null;
+    permis_requis?: boolean;
+};
+
 export default async function FichePage({ params }: { params: Params }) {
     const { slug } = await params;
     const ctx = await getDashboardContext(slug);
@@ -30,7 +38,7 @@ export default async function FichePage({ params }: { params: Params }) {
         const { data } = await supabase
             .from("etang_details")
             .select(
-                "especes, superficie_ha, profondeur_max_m, record_kg, tarif_journee_cents, tarif_annee_cents, reservation_active"
+                "especes, superficie_ha, profondeur_max_m, record_kg, tarif_journee_cents, tarif_annee_cents, reservation_active, reglement"
             )
             .eq("organization_id", ctx.org.id)
             .single();
@@ -43,6 +51,8 @@ export default async function FichePage({ params }: { params: Params }) {
             .single();
         magasinDetails = data;
     }
+
+    const reglement = (etangDetails?.reglement ?? null) as ReglementDb | null;
 
     return (
         <div className="space-y-12">
@@ -117,6 +127,13 @@ export default async function FichePage({ params }: { params: Params }) {
                                 ? (etangDetails.tarif_annee_cents / 100).toFixed(2)
                                 : "",
                             reservation_active: etangDetails?.reservation_active ?? false,
+                            reglement: {
+                                no_kill: reglement?.no_kill ?? false,
+                                baitboat_autorise: reglement?.baitboat_autorise ?? false,
+                                nuit_autorisee: reglement?.nuit_autorisee ?? false,
+                                nb_cannes_max: reglement?.nb_cannes_max?.toString() ?? "",
+                                permis_requis: reglement?.permis_requis ?? true, // default true (cas le plus courant)
+                            },
                         }}
                     />
                 )}

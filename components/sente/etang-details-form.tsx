@@ -14,6 +14,13 @@ export type EtangDetails = {
     tarif_journee_eur: string;
     tarif_annee_eur: string;
     reservation_active: boolean;
+    reglement: {
+        no_kill: boolean;
+        baitboat_autorise: boolean;
+        nuit_autorisee: boolean;
+        nb_cannes_max: string;
+        permis_requis: boolean;
+    };
 };
 
 export function EtangDetailsForm({ details }: { details: EtangDetails }) {
@@ -110,6 +117,48 @@ export function EtangDetailsForm({ details }: { details: EtangDetails }) {
         </span>
             </label>
 
+            <fieldset className="border-t border-border pt-8 space-y-5">
+                <legend className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Règlement de l&apos;étang
+                </legend>
+
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                    Ces règles seront affichées sur ta fiche publique. Tous les champs sont
+                    requis pour publier ton étang.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <CheckboxRow
+                        name="reglement_noKill"
+                        label="No-kill obligatoire"
+                        defaultChecked={details.reglement.no_kill}
+                    />
+                    <CheckboxRow
+                        name="reglement_baitboatAutorise"
+                        label="Bateau amorceur autorisé"
+                        defaultChecked={details.reglement.baitboat_autorise}
+                    />
+                    <CheckboxRow
+                        name="reglement_nuitAutorisee"
+                        label="Pêche de nuit autorisée"
+                        defaultChecked={details.reglement.nuit_autorisee}
+                    />
+                    <CheckboxRow
+                        name="reglement_permisRequis"
+                        label="Permis de pêche requis"
+                        defaultChecked={details.reglement.permis_requis}
+                    />
+                </div>
+
+                <NumField
+                    label="Nombre de cannes max par pêcheur"
+                    name="reglement_nbCannesMax"
+                    defaultValue={details.reglement.nb_cannes_max}
+                    step="1"
+                    hint="Habituellement 2, 3 ou 4 selon l'étang"
+                />
+            </fieldset>
+
             <div className="border-t border-border pt-6 flex flex-wrap items-center justify-between gap-4">
                 <div className="text-sm">
                     {error && <span className="text-destructive">{error}</span>}
@@ -160,6 +209,28 @@ function NumField({
           {hint}
         </span>
             )}
+        </label>
+    );
+}
+
+function CheckboxRow({
+                         name,
+                         label,
+                         defaultChecked,
+                     }: {
+    name: string;
+    label: string;
+    defaultChecked: boolean;
+}) {
+    return (
+        <label className="flex items-center gap-3 cursor-pointer border border-border bg-background px-4 py-3 hover:border-foreground transition-colors">
+            <input
+                type="checkbox"
+                name={name}
+                defaultChecked={defaultChecked}
+                className="accent-[var(--accent)]"
+            />
+            <span className="text-sm">{label}</span>
         </label>
     );
 }
