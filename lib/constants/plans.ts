@@ -232,3 +232,35 @@ export function getEtangPlan(planId: string | null | undefined): EtangPlan {
     if (!planId) return ETANG_PLANS.vitrine;
     return ETANG_PLANS[planId as EtangPlanId] ?? ETANG_PLANS.vitrine;
 }
+
+/**
+ * Retourne le rate effectif d'un magasin avec override custom possible.
+ *
+ * À garder en sync avec create_order_from_cart (RPC SQL) :
+ *   - Override custom (magasin_details.commission_rate_bps) en priorité si != null
+ *   - Sinon fallback sur le commissionBps du plan
+ *
+ * Utilisé par : dashboard magasin (afficher le rate), checkout côté UI
+ * (estimation pré-paiement), backoffice admin Sente (édition deals custom).
+ */
+export function resolveMagasinCommissionBps(
+    planId: MagasinPlanId,
+    customRateBps: number | null
+): number {
+    if (customRateBps !== null && customRateBps >= 0) {
+        return customRateBps;
+    }
+    return MAGASIN_PLANS[planId].commissionBps;
+}
+
+/**
+ * True si le rate effectif diffère du tarif standard du plan
+ * (= deal custom actif). Pour badge "Tarif négocié" en UI admin.
+ */
+export function isMagasinCustomCommission(
+    planId: MagasinPlanId,
+    customRateBps: number | null
+): boolean {
+    if (customRateBps === null) return false;
+    return customRateBps !== MAGASIN_PLANS[planId].commissionBps;
+}

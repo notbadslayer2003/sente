@@ -17,11 +17,7 @@ const UpdateShopSettingsSchema = z.object({
     organization_id: z.string().uuid(),
     click_collect_enabled: z.boolean(),
     shipping_standard_enabled: z.boolean(),
-    shipping_standard_fee_cents: z
-        .number()
-        .int("Frais entiers requis (en centimes)")
-        .min(0, "Frais négatifs impossibles")
-        .max(10000, "Frais trop élevés (max 100€)"),
+    // shipping_standard_fee_cents retiré : calculé au checkout (Sendcloud / autre)
     shipping_local_enabled: z.boolean(),
     shipping_local_fee_cents: z
         .number()
@@ -39,18 +35,13 @@ const UpdateShopSettingsSchema = z.object({
 export async function updateShopSettingsAction(
     formData: FormData
 ): Promise<ActionResult> {
-    // Parse les nombres et les booléens depuis FormData (qui ne préserve pas les types)
-    const stdFeeRaw = formData.get("shipping_standard_fee_cents");
     const localFeeRaw = formData.get("shipping_local_fee_cents");
 
     const parsed = UpdateShopSettingsSchema.safeParse({
         organization_id: formData.get("organization_id"),
         click_collect_enabled: formData.get("click_collect_enabled") === "true",
-        shipping_standard_enabled: formData.get("shipping_standard_enabled") === "true",
-        shipping_standard_fee_cents:
-            typeof stdFeeRaw === "string" && stdFeeRaw.length > 0
-                ? parseInt(stdFeeRaw, 10)
-                : 0,
+        shipping_standard_enabled:
+            formData.get("shipping_standard_enabled") === "true",
         shipping_local_enabled: formData.get("shipping_local_enabled") === "true",
         shipping_local_fee_cents:
             typeof localFeeRaw === "string" && localFeeRaw.length > 0
@@ -66,7 +57,6 @@ export async function updateShopSettingsAction(
         };
     }
 
-    // Validation supplémentaire : si livraison locale activée, zone description recommandée
     if (parsed.data.shipping_local_enabled && !parsed.data.shipping_local_zone_desc) {
         return {
             ok: false,
@@ -74,7 +64,6 @@ export async function updateShopSettingsAction(
         };
     }
 
-    // Restriction : seul owner ou admin peut modifier la config boutique
     const auth = await assertOrgMember(parsed.data.organization_id);
     if (!auth.ok) return auth;
     if (auth.role !== "owner" && auth.role !== "admin") {
@@ -86,7 +75,6 @@ export async function updateShopSettingsAction(
 
     const supabase = await createClient();
 
-    // Vérifie que l'org est bien un magasin (pas un étang)
     const { data: org } = await supabase
         .from("organizations")
         .select("org_type")
@@ -97,7 +85,6 @@ export async function updateShopSettingsAction(
         return { ok: false, error: "Seuls les magasins ont une config boutique" };
     }
 
-    // Upsert : créer la ligne si elle n'existe pas, sinon update
     const { error } = await supabase
         .from("shop_settings")
         .upsert(
@@ -105,7 +92,7 @@ export async function updateShopSettingsAction(
                 organization_id: parsed.data.organization_id,
                 click_collect_enabled: parsed.data.click_collect_enabled,
                 shipping_standard_enabled: parsed.data.shipping_standard_enabled,
-                shipping_standard_fee_cents: parsed.data.shipping_standard_fee_cents,
+                shipping_standard_fee_cents: 0, // colonne préservée pour compat DB, valeur figée à 0
                 shipping_local_enabled: parsed.data.shipping_local_enabled,
                 shipping_local_fee_cents: parsed.data.shipping_local_fee_cents,
                 shipping_local_zone_desc: parsed.data.shipping_local_zone_desc,
@@ -121,7 +108,6 @@ export async function updateShopSettingsAction(
     revalidatePath(`/dashboard/[slug]/boutique`, "page");
     revalidatePath(`/dashboard/[slug]/boutique/parametres`, "page");
     revalidatePath(`/magasins/[slug]/boutique`, "page");
-    // Le checkout dépend des frais → on revalide aussi le panier
     revalidatePath(`/panier`, "page");
 
     return { ok: true };

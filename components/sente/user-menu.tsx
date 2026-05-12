@@ -2,9 +2,6 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect, useTransition } from "react";
-import {
-    User, Settings, Heart, Calendar, ShoppingBag, LogOut, ChevronRight,
-} from "lucide-react";
 import { logoutAction } from "@/app/actions/auth";
 
 export function UserMenu({
@@ -27,13 +24,17 @@ export function UserMenu({
     }, []);
 
     useEffect(() => {
-        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setOpen(false);
+        };
         document.addEventListener("keydown", onKey);
         return () => document.removeEventListener("keydown", onKey);
     }, []);
 
     const handleLogout = () => {
-        startTransition(async () => { await logoutAction(); });
+        startTransition(async () => {
+            await logoutAction();
+        });
     };
 
     const initials = (displayName ?? email)
@@ -43,11 +44,9 @@ export function UserMenu({
         .join("")
         .toUpperCase();
 
-    const firstName = displayName?.split(" ")[0];
-
     return (
         <div ref={ref} className="relative">
-            {/* Avatar bouton */}
+            {/* Trigger avatar */}
             <button
                 onClick={() => setOpen((o) => !o)}
                 aria-label="Menu utilisateur"
@@ -63,62 +62,51 @@ export function UserMenu({
 
             {/* Dropdown */}
             {open && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-background border border-border shadow-lg z-50">
+                <div className="absolute right-0 top-full mt-2 w-72 bg-background border border-border z-50">
 
-                    {/* Identité */}
-                    <div className="px-5 py-4 flex items-center gap-3 border-b border-border">
-                        <div className="w-9 h-9 flex-shrink-0 flex items-center justify-center bg-accent/10 text-accent text-xs font-medium uppercase tracking-wider">
-                            {initials || "?"}
-                        </div>
-                        <div className="min-w-0">
-                            {firstName && (
-                                <p className="font-display text-base leading-tight truncate">
-                                    {displayName}
-                                </p>
-                            )}
-                            <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                                {email}
-                            </p>
-                        </div>
+                    {/* Header identité — sobre, pas d'avatar dupliqué */}
+                    <div className="px-5 pt-5 pb-4 border-b border-border">
+                        <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                            Connecté
+                        </p>
+                        <p className="mt-2 font-display text-lg tracking-tight leading-tight truncate">
+                            {displayName ?? email.split("@")[0]}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                            {email}
+                        </p>
                     </div>
 
-                    {/* Navigation principale */}
-                    <div className="py-1.5">
-                        <MenuLink href="/profil" icon={User} onClick={() => setOpen(false)}>
+                    {/* Navigation — style ProfilSidebar, border-l */}
+                    <nav className="py-2">
+                        <MenuLink href="/profil" onClick={() => setOpen(false)}>
                             Mon profil
                         </MenuLink>
-                        <MenuLink href="/profil/commandes" icon={ShoppingBag} onClick={() => setOpen(false)}>
+                        <MenuLink href="/profil/commandes" onClick={() => setOpen(false)}>
                             Mes commandes
                         </MenuLink>
-                        <MenuLink href="/profil/inscriptions" icon={Calendar} onClick={() => setOpen(false)}>
+                        <MenuLink href="/profil/inscriptions" onClick={() => setOpen(false)}>
                             Mes inscriptions
                         </MenuLink>
-                        <MenuLink href="/profil/suivis" icon={Heart} onClick={() => setOpen(false)}>
+                        <MenuLink href="/profil/suivis" onClick={() => setOpen(false)}>
                             Mes suivis
                         </MenuLink>
-                    </div>
-
-                    {/* Séparateur + Paramètres */}
-                    <div className="border-t border-border py-1.5">
-                        <MenuLink href="/profil/parametres" icon={Settings} onClick={() => setOpen(false)}>
+                        <MenuLink href="/profil/marketplace/annonces" onClick={() => setOpen(false)}>
+                            Marketplace
+                        </MenuLink>
+                        <MenuLink href="/profil/parametres" onClick={() => setOpen(false)}>
                             Paramètres
                         </MenuLink>
-                    </div>
+                    </nav>
 
                     {/* Déconnexion */}
-                    <div className="border-t border-border py-1.5">
+                    <div className="border-t border-border py-2">
                         <button
                             onClick={handleLogout}
                             disabled={isPending}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left group transition-colors hover:bg-destructive/5 disabled:opacity-50"
+                            className="w-full text-left px-5 py-2 text-sm text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
                         >
-                            <LogOut
-                                className="w-3.5 h-3.5 text-muted-foreground group-hover:text-destructive transition-colors flex-shrink-0"
-                                strokeWidth={1.75}
-                            />
-                            <span className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground group-hover:text-destructive transition-colors">
-                                {isPending ? "Déconnexion..." : "Se déconnecter"}
-                            </span>
+                            {isPending ? "Déconnexion..." : "Se déconnecter"}
                         </button>
                     </div>
                 </div>
@@ -129,12 +117,10 @@ export function UserMenu({
 
 function MenuLink({
                       href,
-                      icon: Icon,
                       onClick,
                       children,
                   }: {
     href: string;
-    icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
     onClick: () => void;
     children: React.ReactNode;
 }) {
@@ -142,19 +128,9 @@ function MenuLink({
         <Link
             href={href}
             onClick={onClick}
-            className="flex items-center gap-3 px-4 py-2.5 group transition-colors hover:bg-accent/5"
+            className="block px-5 py-2 text-sm text-foreground/80 hover:text-accent hover:bg-accent/5 transition-colors"
         >
-            <Icon
-                className="w-3.5 h-3.5 text-muted-foreground group-hover:text-accent transition-colors flex-shrink-0"
-                strokeWidth={1.75}
-            />
-            <span className="flex-1 text-[11px] uppercase tracking-[0.15em] group-hover:text-accent transition-colors">
-                {children}
-            </span>
-            <ChevronRight
-                className="w-3 h-3 text-muted-foreground/40 group-hover:text-accent/60 transition-colors"
-                strokeWidth={1.75}
-            />
+            {children}
         </Link>
     );
 }

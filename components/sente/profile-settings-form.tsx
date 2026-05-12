@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { updateProfileAction } from "@/app/actions/profile";
-import { ESPECES } from "@/lib/constants/especes";
-import { COUNTRIES } from "@/lib/constants/regions";
-import { MultiSelectChips } from "@/components/sente/multi-select-chips";
+import {useState, useTransition} from "react";
+import {updateProfileAction} from "@/app/actions/profile";
+import {ESPECES} from "@/lib/constants/especes";
+import {COUNTRIES} from "@/lib/constants/regions";
+import {MultiSelectChips} from "@/components/sente/multi-select-chips";
+import {PhoneInput} from "@/components/sente/phone-input";
 
 type Profile = {
     full_name: string;
@@ -16,7 +17,7 @@ type Profile = {
     marketing_opt_in: boolean;
 };
 
-export function ProfileSettingsForm({ profile }: { profile: Profile }) {
+export function ProfileSettingsForm({profile}: { profile: Profile }) {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -64,16 +65,17 @@ export function ProfileSettingsForm({ profile }: { profile: Profile }) {
                     name="country"
                     defaultValue={profile.country}
                     options={[
-                        { value: "", label: "Non renseigné" },
-                        ...COUNTRIES.map((c) => ({ value: c.value, label: c.label })),
+                        {value: "", label: "Non renseigné"},
+                        ...COUNTRIES.map((c) => ({value: c.value, label: c.label})),
                     ]}
                 />
             </div>
 
-            <Field
+            <PhoneInput
                 label="Téléphone"
                 name="phone"
                 defaultValue={profile.phone}
+                defaultCountry={profile.country === "FR" ? "FR" : "BE"}
                 hint="Pour pré-remplir tes inscriptions aux événements. Jamais affiché publiquement."
                 error={fieldErrors.phone}
             />
@@ -95,9 +97,9 @@ export function ProfileSettingsForm({ profile }: { profile: Profile }) {
             />
 
             <div>
-        <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground block">
-          Espèces préférées
-        </span>
+                <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground block">
+                  Espèces préférées
+                </span>
                 <p className="mt-1 text-xs text-muted-foreground">
                     Pour personnaliser ton fil et tes recommandations.
                 </p>
