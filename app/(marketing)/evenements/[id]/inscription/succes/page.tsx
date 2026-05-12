@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { getEventDetail } from "@/lib/dal/events";
+import {notFound} from "next/navigation";
 
 type Params = Promise<{ id: string }>;
 type SearchParams = Promise<{ registration?: string }>;
@@ -11,6 +12,8 @@ export default async function SuccessPage({
     params: Params;
     searchParams: SearchParams;
 }) {
+    if (process.env.VERCEL_ENV === "production") notFound();
+
     const { id } = await params;
     const event = await getEventDetail(id);
 

@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
-import { Fraunces, Geist } from "next/font/google";
+import {Fraunces, Geist, Inter_Tight, Libre_Caslon_Text} from "next/font/google";
 import "./globals.css";
 
-const fraunces = Fraunces({
+// ---- Body : Inter Tight ----
+// Le design utilise 400/500/600/700. On charge uniquement ce qui sert
+// pour ne pas plomber le LCP (chaque poids = +20-40 ko sur la font).
+const interTight = Inter_Tight({
     subsets: ["latin"],
-    variable: "--font-display",
-    display: "swap",
-});
-
-const geist = Geist({
-    subsets: ["latin"],
+    weight: ["400", "500", "600", "700"],
     variable: "--font-body",
     display: "swap",
 });
@@ -40,7 +38,9 @@ export default function RootLayout({
     children: React.ReactNode;
 }) {
     return (
-        <html lang="fr" className={`${fraunces.variable} ${geist.variable}`}>
+        <html lang="fr"
+              className={`${interTight.variable}`}
+        >
         <body className="font-body bg-background text-foreground antialiased">
         {children}
         </body>

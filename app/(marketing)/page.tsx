@@ -9,6 +9,12 @@ import { MagasinsPartenaires } from "@/components/sente/magasins-partenaires";
 import { CarteWallonie } from "@/components/sente/carte-wallonie";
 import { PourLesExploitants } from "@/components/sente/pour-les-exploitants";
 import { Newsletter } from "@/components/sente/newsletter";
+import {MarketCarousel} from "@/components/sente/market-carousel";
+import {ThreeUses} from "@/components/sente/three-uses";
+import {Vision} from "@/components/sente/vision";
+import {FAQ} from "@/components/sente/faq";
+import {Founder} from "@/components/sente/founder";
+import {ContactCTA} from "@/components/sente/contact-cta";
 
 type SearchParams = Promise<{ account_deleted?: string }>;
 
@@ -38,17 +44,23 @@ export default async function HomePage({
                 </div>
             )}
             <Hero />
-            <APropos />
-            <CommentCaMarche />
-            <LieuxAlaUne lieux={lieuxFeatured} />
-            <StatsBar
-                nbLieux={lieuxAll.length}
-                nbMagasinsPartenaires={magasinsAll.filter((m) => m.partenaire).length}
-            />
-            <MagasinsPartenaires magasins={magasinsPartenaires} />
-            <CarteWallonie lieux={lieuxAll} />
-            <PourLesExploitants />
-            <Newsletter />
+            <MarketCarousel/>
+            {/*<APropos/>*/}
+            <ThreeUses/>
+            {/*<CommentCaMarche />*/}
+            <Vision/>
+            <FAQ/>
+            <Founder/>
+            <ContactCTA/>
+            {/*<LieuxAlaUne lieux={lieuxFeatured} />*/}
+            {/*<StatsBar*/}
+            {/*    nbLieux={lieuxAll.length}*/}
+            {/*    nbMagasinsPartenaires={magasinsAll.filter((m) => m.partenaire).length}*/}
+            {/*/>*/}
+            {/*<MagasinsPartenaires magasins={magasinsPartenaires} />*/}
+            {/*<CarteWallonie lieux={lieuxAll} />*/}
+            {/*<PourLesExploitants />*/}
+            {/*<Newsletter />*/}
         </>
     );
 }

@@ -13,6 +13,8 @@ export default async function EventRegistrationPage({
     params: Params;
     searchParams: SearchParams;
 }) {
+    if (process.env.VERCEL_ENV === "production") notFound();
+
     const { id } = await params;
     const sp = await searchParams;
 

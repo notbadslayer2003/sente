@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getUpcomingEvents } from "@/lib/dal/events";
 import { EventCard } from "@/components/sente/event-card";
+import {notFound} from "next/navigation";
 
 export const metadata = {
     title: "Événements pêche — Sente",
@@ -9,6 +10,7 @@ export const metadata = {
 
 export default async function EvenementsPage() {
     const events = await getUpcomingEvents({ limit: 50 });
+    if (process.env.VERCEL_ENV === "production") notFound();
 
     return (
         <section className="bg-background min-h-screen pt-24 pb-20">

@@ -44,6 +44,8 @@ export async function generateMetadata({params}: { params: Params }) {
 }
 
 export default async function EventDetailPage({params}: { params: Params }) {
+    if (process.env.VERCEL_ENV === "production") notFound();
+
     const {id} = await params;
     const event = await getEventDetail(id);
     if (!event) notFound();

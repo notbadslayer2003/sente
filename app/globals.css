@@ -4,123 +4,147 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   TOKENS SENTE — valeurs littérales
+   Tailwind les expose comme utilities : bg-ink, text-mute, border-line,
+   bg-green, etc. Pas d'indirection ici sinon Tailwind ne génère pas
+   correctement la variable côté :root.
+   ============================================================ */
+@theme {
+    /* Neutres chauds */
+    --color-paper:    oklch(0.985 0.002 95);   /* #FAFAF7 - fond chaud très clair */
+    --color-warm:     oklch(0.955 0.011 85);   /* #F4EFE6 - beige chaud (sections) */
+    --color-ink:      oklch(0.13 0 0);         /* #0A0A0A - noir profond */
+    --color-ink2:     oklch(0.225 0 0);        /* #1F1F1F - noir hover */
+    --color-body-ink: oklch(0.39 0 0);         /* #3F3F3F - texte courant */
+    --color-mute:     oklch(0.55 0 0);         /* #737373 - texte secondaire */
+    --color-soft:     oklch(0.705 0.004 70);   /* #A8A29E - gris chaud */
+    --color-line:     oklch(0.9 0.011 85);     /* #E7E2D9 - bordure standard */
+    --color-line2:    oklch(0.93 0.013 85);    /* #EFEAE0 - bordure pâle */
+    --color-line3:    oklch(0.95 0.012 85);    /* #F3EFE6 - bordure très pâle */
+
+    /* Vert forêt — palette CTA / actif */
+    --color-green:    oklch(0.45 0.085 155);   /* #2D6A4F - vert forêt */
+    --color-green-d:  oklch(0.34 0.075 155);   /* #1B4332 - vert hover */
+    --color-green-l:  oklch(0.91 0.018 155);   /* #D8E4DD - vert pâle */
+}
+
+/* ============================================================
+   TOKENS SHADCN — indirection conservée pour permettre dark mode futur
+   ============================================================ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
 
-  --font-display: var(--font-display);
-  --font-body: var(--font-body);
+    --font-body: var(--font-body);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
 }
 
 :root {
-  --radius: 0.625rem;
+    --radius: 0.625rem;
 
-  /* Neutres chauds — base stone */
-  --background: oklch(0.985 0.002 75);
-  --foreground: oklch(0.205 0.003 50);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.205 0.003 50);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.205 0.003 50);
+    /* Tokens shadcn remappés sur la palette Sente.
+       Valeurs dupliquées (au lieu de var(--color-paper)) pour éviter les
+       surprises de cascade entre les deux blocs @theme. */
+    --background: oklch(0.985 0.002 95);       /* paper */
+    --foreground: oklch(0.13 0 0);             /* ink */
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.13 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.13 0 0);
 
-  /* Vert forêt — primary */
-  --primary: oklch(0.36 0.045 155);
-  --primary-foreground: oklch(0.985 0.002 75);
+    --primary: oklch(0.45 0.085 155);          /* green */
+    --primary-foreground: oklch(1 0 0);
 
-  /* Vert très pâle — secondary */
-  --secondary: oklch(0.94 0.012 155);
-  --secondary-foreground: oklch(0.36 0.045 155);
+    --secondary: oklch(0.91 0.018 155);        /* green-l */
+    --secondary-foreground: oklch(0.34 0.075 155); /* green-d */
 
-  /* Muted */
-  --muted: oklch(0.96 0.003 75);
-  --muted-foreground: oklch(0.55 0.005 60);
+    --muted: oklch(0.95 0.012 85);             /* line3 */
+    --muted-foreground: oklch(0.55 0 0);       /* mute */
 
-  /* Sable / ocre — accent CTA chaud */
-  --accent: oklch(0.7 0.075 60);
-  --accent-foreground: oklch(0.2 0.02 50);
+    /* Accent ocre — distinct du vert pour CTA marketing alternatifs */
+    --accent: oklch(0.7 0.075 60);
+    --accent-foreground: oklch(0.13 0 0);
 
-  /* Destructive */
-  --destructive: oklch(0.55 0.18 25);
-  --destructive-foreground: oklch(0.985 0.002 75);
+    --destructive: oklch(0.55 0.18 25);
+    --destructive-foreground: oklch(1 0 0);
 
-  --border: oklch(0.91 0.005 75);
-  --input: oklch(0.91 0.005 75);
-  --ring: oklch(0.36 0.045 155);
+    --border: oklch(0.9 0.011 85);             /* line */
+    --input: oklch(0.9 0.011 85);
+    --ring: oklch(0.45 0.085 155);             /* green */
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-family: var(--font-body), system-ui, sans-serif;
-  }
-  h1, h2, h3, h4 {
-    font-family: var(--font-display), Georgia, serif;
-    font-feature-settings: "ss01", "ss03";
-    letter-spacing: -0.015em;
-  }
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground antialiased;
+        font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    }
 }
 
-@utility font-display-soft {
-  font-family: var(--font-display);
-  font-variation-settings: "SOFT" 100, "WONK" 1, "opsz" 144;
-}
+/* ============================================================
+   Helpers utilitaires Sente
+   ============================================================ */
 
-/* Empêche Leaflet de passer au-dessus du header */
 .leaflet-container,
 .leaflet-pane,
 .leaflet-top,
 .leaflet-bottom {
-  z-index: 1 !important;
+    z-index: 1 !important;
 }
-
 .leaflet-tooltip {
-  z-index: 2 !important;
+    z-index: 2 !important;
 }
+
 .prose-sente ul {
-  list-style: disc;
-  padding-left: 1.5rem;
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
+    list-style: disc;
+    padding-left: 1.5rem;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
 }
-
-.prose-sente ul li {
-  margin-top: 0.25rem;
-}
-
-.prose-sente p + p {
-  margin-top: 1rem;
-}
-
+.prose-sente ul li { margin-top: 0.25rem; }
+.prose-sente p + p { margin-top: 1rem; }
 .prose-sente a {
-  text-decoration: underline;
-  text-underline-offset: 4px;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+.prose-sente a:hover { color: var(--accent); }
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+}
+.fade-up {
+    animation: fadeUp 320ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.prose-sente a:hover {
-  color: var(--accent);
+@keyframes senteLivePulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.4); opacity: 0.4; }
+}
+.live-dot {
+    animation: senteLivePulse 1.8s ease-in-out infinite;
 }
