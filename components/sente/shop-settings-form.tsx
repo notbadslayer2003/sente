@@ -22,16 +22,13 @@ export function ShopSettingsForm({
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
-    // State local
     const [clickCollect, setClickCollect] = useState(
         initialSettings.click_collect_enabled
     );
     const [shippingStd, setShippingStd] = useState(
         initialSettings.shipping_standard_enabled
     );
-    const [shippingStdFee, setShippingStdFee] = useState(
-        centsToEurInput(initialSettings.shipping_standard_fee_cents)
-    );
+    // shipping_standard_fee_cents retiré : calculé dynamiquement au checkout
     const [shippingLocal, setShippingLocal] = useState(
         initialSettings.shipping_local_enabled
     );
@@ -47,13 +44,8 @@ export function ShopSettingsForm({
         setError(null);
         setSuccess(false);
 
-        const stdFeeCents = eurStringToCents(shippingStdFee);
         const localFeeCents = eurStringToCents(shippingLocalFee);
 
-        if (shippingStd && stdFeeCents === null) {
-            setError("Frais de livraison standard invalides");
-            return;
-        }
         if (shippingLocal && localFeeCents === null) {
             setError("Frais de livraison locale invalides");
             return;
@@ -63,10 +55,6 @@ export function ShopSettingsForm({
         formData.set("organization_id", organizationId);
         formData.set("click_collect_enabled", String(clickCollect));
         formData.set("shipping_standard_enabled", String(shippingStd));
-        formData.set(
-            "shipping_standard_fee_cents",
-            String(stdFeeCents ?? 0)
-        );
         formData.set("shipping_local_enabled", String(shippingLocal));
         formData.set(
             "shipping_local_fee_cents",
@@ -101,10 +89,10 @@ export function ShopSettingsForm({
                 />
             </Section>
 
-            {/* Livraison standard */}
+            {/* Livraison standard : juste activer/désactiver, prix calculé au checkout */}
             <Section
                 title="Livraison standard"
-                description="Envoi par transporteur (poste, GLS, etc.). Tu fixes ton forfait, valable pour toute commande."
+                description="Envoi par transporteur. Les frais sont calculés automatiquement au checkout selon le poids du colis et l'adresse du client."
             >
                 <Toggle
                     checked={shippingStd}
@@ -112,20 +100,12 @@ export function ShopSettingsForm({
                     label="Activer la livraison standard"
                     disabled={!canEdit}
                 />
-                {shippingStd && (
-                    <PriceField
-                        label="Frais de livraison"
-                        value={shippingStdFee}
-                        onChange={setShippingStdFee}
-                        disabled={!canEdit}
-                    />
-                )}
             </Section>
 
-            {/* Livraison locale */}
+            {/* Livraison locale : forfait fixe car c'est le magasin qui livre lui-même */}
             <Section
                 title="Livraison locale"
-                description="Tu livres toi-même dans une zone géographique limitée (camionnette, vélo cargo...)."
+                description="Tu livres toi-même dans une zone géographique limitée (camionnette, vélo cargo...). Tu fixes ton forfait."
             >
                 <Toggle
                     checked={shippingLocal}
@@ -155,7 +135,7 @@ export function ShopSettingsForm({
                                 className="mt-1.5 w-full bg-background border border-border px-3 py-2 text-sm focus:border-accent focus:outline-none disabled:opacity-50"
                             />
                             <span className="mt-1 block text-[11px] text-muted-foreground">
-                                Décris ta zone pour que les clients sachent s'ils sont
+                                Décris ta zone pour que les clients sachent s&apos;ils sont
                                 éligibles.
                             </span>
                         </label>
@@ -163,10 +143,7 @@ export function ShopSettingsForm({
                 )}
             </Section>
 
-            {/* Feedback + submit */}
-            {error && (
-                <p className="text-xs text-destructive">{error}</p>
-            )}
+            {error && <p className="text-xs text-destructive">{error}</p>}
             {success && (
                 <p className="text-xs text-primary">Paramètres enregistrés.</p>
             )}
@@ -185,6 +162,8 @@ export function ShopSettingsForm({
         </form>
     );
 }
+
+// Section, Toggle, PriceField restent inchangés
 
 function Section({
                      title,

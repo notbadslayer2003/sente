@@ -41,7 +41,7 @@ export function Hero() {
             <div
                 ref={bgRef}
                 className="absolute -inset-x-0 -top-[15%] h-[130%] bg-cover bg-center bg-no-repeat will-change-transform"
-                style={{ backgroundImage: "url('/images/img2Sente.jpg')" }}
+                style={{ backgroundImage: "url('/images/img2Sente.webp')" }}
                 aria-hidden="true"
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/80" />

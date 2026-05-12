@@ -6,6 +6,8 @@ import {redirect} from "next/navigation";
 import {z} from "zod";
 import {createAdminClient} from "@/lib/supabase/admin";
 import { ESPECE_VALUES } from "@/lib/constants/especes";
+import {isValidPhone} from "@/lib/utils/phone";
+import {syncMarketingOptIn} from "@/lib/email/audience";
 
 export type ActionResult =
     | { ok: true }
@@ -20,9 +22,11 @@ const UpdateProfileSchema = z.object({
         .max(100, "Nom trop long"),
     phone: z
         .string()
-        .max(50, "Numéro trop long")
         .optional()
-        .transform((v) => (v && v.trim().length > 0 ? v.trim() : null)),
+        .transform((v) => (v && v.trim() ? v.trim() : null))
+        .refine((v) => !v || isValidPhone(v), {
+            message: "Numéro de téléphone invalide.",
+        }),
     bio: z
         .string()
         .max(500, "Bio trop longue (500 caractères max)")
@@ -66,52 +70,85 @@ export async function updateProfileAction(
             const path = issue.path[0]?.toString();
             if (path) fieldErrors[path] = issue.message;
         }
-        return {ok: false, error: "Vérifie les champs", fieldErrors};
+        return { ok: false, error: "Vérifie les champs", fieldErrors };
     }
 
     const supabase = await createClient();
     const {
-        data: {user},
+        data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return {ok: false, error: "Non authentifié"};
+    if (!user?.email) return { ok: false, error: "Non authentifié" };
 
-    // Construit l'objet de mise à jour avec un type accepté par Supabase JS.
-    // marketing_opt_in_at n'est mis à jour que si l'opt-in est activé.
-    const {error} = parsed.data.marketing_opt_in
-        ? await supabase
-            .from("profiles")
-            .update({
-                full_name: parsed.data.full_name,
-                phone: parsed.data.phone,
-                bio: parsed.data.bio,
-                city: parsed.data.city,
-                country: parsed.data.country,
-                especes_pref: parsed.data.especes_pref,
-                marketing_opt_in: true,
-                marketing_opt_in_at: new Date().toISOString(),
-            })
-            .eq("id", user.id)
-        : await supabase
-            .from("profiles")
-            .update({
-                full_name: parsed.data.full_name,
-                phone: parsed.data.phone,
-                bio: parsed.data.bio,
-                city: parsed.data.city,
-                country: parsed.data.country,
-                especes_pref: parsed.data.especes_pref,
-                marketing_opt_in: false,
-            })
-            .eq("id", user.id);
+    // Lire l'ancien marketing_opt_in pour détecter un changement
+    // (évite de spammer Resend à chaque save de profil)
+    const { data: oldProfile } = await supabase
+        .from("profiles")
+        .select("marketing_opt_in")
+        .eq("id", user.id)
+        .single();
+    const oldOptIn = oldProfile?.marketing_opt_in ?? false;
+    const newOptIn = parsed.data.marketing_opt_in;
+
+    // marketing_opt_in_at est posé uniquement à la bascule false → true,
+    // pour conserver la date du consentement RGPD initial (ou du dernier
+    // re-consentement après désinscription). Pas reset à chaque save.
+    const update = {
+        full_name: parsed.data.full_name,
+        phone: parsed.data.phone,
+        bio: parsed.data.bio,
+        city: parsed.data.city,
+        country: parsed.data.country,
+        especes_pref: parsed.data.especes_pref,
+        marketing_opt_in: newOptIn,
+        ...(newOptIn && !oldOptIn
+            ? { marketing_opt_in_at: new Date().toISOString() }
+            : {}),
+    };
+
+    const { error } = await supabase
+        .from("profiles")
+        .update(update)
+        .eq("id", user.id);
 
     if (error) {
         console.error("updateProfile failed:", error);
-        return {ok: false, error: "Impossible de sauvegarder."};
+        return { ok: false, error: "Impossible de sauvegarder." };
+    }
+
+    // Sync full_name dans auth.users.raw_user_meta_data pour lecture gratuite
+    // dans le JWT (navbar, breadcrumbs). Évite une query profiles à chaque page.
+    //
+    // Garde-fou : auth.updateUser({ data }) fait un MERGE des metadata, donc
+    // on ne casse PAS les autres clés (pending_org_*, etc.).
+    //
+    // Best-effort : si ça échoue, on continue. Le profile est sauvé, la nav
+    // fallback sur user.email. Pas la peine de bloquer l'UX pour un sync raté.
+    const { error: metaError } = await supabase.auth.updateUser({
+        data: { full_name: parsed.data.full_name },
+    });
+
+    if (metaError) {
+        console.error("updateProfile metadata sync failed:", metaError);
+        // On ne return pas en erreur : profil sauvé, nav fallback gérée.
+    }
+
+    // Sync audience Resend uniquement si l'opt-in a changé d'état.
+    // Best-effort : le helper catch ses erreurs en interne, un fail
+    // côté Resend ne fait pas échouer l'enregistrement du profil.
+    if (oldOptIn !== newOptIn) {
+        const fullName = parsed.data.full_name?.trim() ?? "";
+        const [firstName, ...rest] = fullName.split(" ");
+        await syncMarketingOptIn({
+            email: user.email,
+            optIn: newOptIn,
+            firstName: firstName || null,
+            lastName: rest.join(" ") || null,
+        });
     }
 
     revalidatePath("/profil");
     revalidatePath("/profil/parametres");
-    return {ok: true};
+    return { ok: true };
 }
 
 /**

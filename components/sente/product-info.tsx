@@ -82,11 +82,7 @@ export function ProductInfo({
                                 <div>
                                     <p>Livraison standard</p>
                                     <p className="text-xs text-muted-foreground">
-                                        {formatPriceEur(
-                                            shopSettings.shipping_standard_fee_cents,
-                                            { showFree: true }
-                                        )}{" "}
-                                        — par transporteur.
+                                        Par transporteur. Frais calculés au checkout selon le poids et l&apos;adresse de livraison.
                                     </p>
                                 </div>
                             </li>

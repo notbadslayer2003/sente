@@ -69,20 +69,35 @@ export type ProductCategoryFlat = {
 export async function getCategoriesFlat(): Promise<ProductCategoryFlat[]> {
     const tree = await getCategoryTree();
     const flat: ProductCategoryFlat[] = [];
+
     for (const root of tree) {
-        for (const child of root.children) {
+        if (root.children.length === 0) {
+            // Catégorie standalone (pas de sous-cats) → directement sélectionnable.
+            // Cas actuel : la taxonomie a été aplatie, plus de hiérarchie à 2 niveaux.
             flat.push({
-                id: child.id,
-                slug: child.slug,
-                name: child.name,
-                parent_name: root.name,
-                label: `${root.name} > ${child.name}`,
+                id: root.id,
+                slug: root.slug,
+                name: root.name,
+                parent_name: "",
+                label: root.name,
             });
+        } else {
+            // Catégorie avec sous-cats → on liste les feuilles avec le préfixe parent.
+            // Préservé pour la rétro-compat si tu réintroduis une hiérarchie un jour.
+            for (const child of root.children) {
+                flat.push({
+                    id: child.id,
+                    slug: child.slug,
+                    name: child.name,
+                    parent_name: root.name,
+                    label: `${root.name} › ${child.name}`,
+                });
+            }
         }
     }
+
     return flat;
 }
-
 /**
  * Récupère une catégorie par son slug (utile pour /boutique?category=cannes-carpe en V2 marketplace).
  */

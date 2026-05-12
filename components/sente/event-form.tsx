@@ -286,18 +286,6 @@ export function EventForm({
                         className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-accent"
                     />
                 </Field>
-                <Field label="Commission Sente (%)">
-                    <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="50"
-                        value={commissionPct}
-                        onChange={(e) => setCommissionPct(e.target.value)}
-                        placeholder="Défaut org"
-                        className="w-full bg-background border border-border px-3 py-2 text-sm focus:outline-none focus:border-accent"
-                    />
-                </Field>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

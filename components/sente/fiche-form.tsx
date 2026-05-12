@@ -3,6 +3,9 @@
 import {useRef, useState, useTransition} from "react";
 import {updateOrgFicheAction} from "@/app/actions/org";
 import {getRegionsForCountry, type CountryCode} from "@/lib/constants/regions";
+import {buildGeocodeQuery} from "@/lib/utils/address";
+import {AddressInput} from "@/components/sente/address-input";
+import {LocationPicker} from "@/components/sente/location-picker";
 
 type OrgFields = {
     id: string;
@@ -29,41 +32,6 @@ export function FicheForm({org}: { org: OrgFields }) {
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [isPending, startTransition] = useTransition();
     const formRef = useRef<HTMLFormElement>(null);
-    const [lat, setLat] = useState(org.lat);
-    const [lng, setLng] = useState(org.lng);
-    const [geocoding, setGeocoding] = useState(false);
-    const [geocodeError, setGeocodeError] = useState<string | null>(null);
-
-    const geocode = async () => {
-        const form = formRef.current;
-        const address = (form?.elements.namedItem("address") as HTMLInputElement)?.value;
-        const city = (form?.elements.namedItem("city") as HTMLInputElement)?.value;
-        const postal = (form?.elements.namedItem("postal_code") as HTMLInputElement)?.value;
-        const country = org.country === "BE" ? "Belgium" : "France";
-
-        const query = [address, postal, city, country].filter(Boolean).join(", ");
-        if (!query.trim()) return;
-
-        setGeocoding(true);
-        setGeocodeError(null);
-        try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`,
-                {headers: {"User-Agent": "Sente/1.0 contact@lasente.eu"}}
-            );
-            const data = await res.json();
-            if (!data.length) {
-                setGeocodeError("Adresse introuvable. Vérifie les champs.");
-                return;
-            }
-            setLat(parseFloat(data[0].lat).toFixed(6));
-            setLng(parseFloat(data[0].lon).toFixed(6));
-        } catch {
-            setGeocodeError("Erreur réseau.");
-        } finally {
-            setGeocoding(false);
-        }
-    };
 
     const regions = getRegionsForCountry(org.country);
 
@@ -87,6 +55,16 @@ export function FicheForm({org}: { org: OrgFields }) {
         });
     };
 
+    // Callback que LocationPicker appelle quand on clique "Localiser depuis l'adresse" :
+    // on lit l'état courant des inputs d'adresse depuis le DOM via la ref.
+    const getCurrentAddressQuery = (): string => {
+        const form = formRef.current;
+        if (!form) return "";
+        const line1 = (form.elements.namedItem("address") as HTMLInputElement)?.value ?? "";
+        const postal_code = (form.elements.namedItem("postal_code") as HTMLInputElement)?.value ?? "";
+        const city = (form.elements.namedItem("city") as HTMLInputElement)?.value ?? "";
+        return buildGeocodeQuery({line1, postal_code, city}, org.country);
+    };
 
     return (
         <form onSubmit={onSubmit} className="space-y-12" ref={formRef}>
@@ -126,87 +104,48 @@ export function FicheForm({org}: { org: OrgFields }) {
                     org.country === "BE" ? "Belgique" : "France"
                 }). Si erreur, contacte le support.`}
             >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <SelectField
-                        label="Région"
-                        name="region"
-                        defaultValue={org.region}
-                        options={[
-                            {value: "", label: "Sélectionner"},
-                            ...regions.map((r) => ({value: r.value, label: r.label})),
-                        ]}
-                        error={fieldErrors.region}
+                <SelectField
+                    label="Région"
+                    name="region"
+                    defaultValue={org.region}
+                    options={[
+                        {value: "", label: "Sélectionner"},
+                        ...regions.map((r) => ({value: r.value, label: r.label})),
+                    ]}
+                    error={fieldErrors.region}
+                />
+
+                <AddressInput
+                    country={org.country}
+                    names={{
+                        line1: "address",
+                        postal_code: "postal_code",
+                        city: "city",
+                    }}
+                    defaultValues={{
+                        line1: org.address,
+                        postal_code: org.postal_code,
+                        city: org.city,
+                    }}
+                    errors={{
+                        line1: fieldErrors.address,
+                        postal_code: fieldErrors.postal_code,
+                        city: fieldErrors.city,
+                    }}
+                />
+
+                <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">
+                        Position exacte sur la carte
+                    </p>
+                    <LocationPicker
+                        country={org.country}
+                        namelat="lat"
+                        namelng="lng"
+                        defaultLat={org.lat}
+                        defaultLng={org.lng}
+                        getAddressForGeocode={getCurrentAddressQuery}
                     />
-                    <Field
-                        label="Ville"
-                        name="city"
-                        defaultValue={org.city}
-                        error={fieldErrors.city}
-                    />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                    <Field
-                        label="Code postal"
-                        name="postal_code"
-                        defaultValue={org.postal_code}
-                        error={fieldErrors.postal_code}
-                    />
-                    <div className="sm:col-span-2">
-                        <Field
-                            label="Adresse"
-                            name="address"
-                            defaultValue={org.address}
-                            error={fieldErrors.address}
-                        />
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <label className="block">
-            <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                Latitude
-            </span>
-                            <input
-                                type="number"
-                                name="lat"
-                                value={lat}
-                                onChange={(e) => setLat(e.target.value)}
-                                step="any"
-                                className="mt-2 w-full bg-background border border-border px-4 py-3 text-sm focus:outline-none focus:border-accent transition-colors"
-                            />
-                        </label>
-                        <label className="block">
-                            <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                                Longitude
-                            </span>
-                            <input
-                                type="number"
-                                name="lng"
-                                value={lng}
-                                onChange={(e) => setLng(e.target.value)}
-                                step="any"
-                                className="mt-2 w-full bg-background border border-border px-4 py-3 text-sm focus:outline-none focus:border-accent transition-colors"
-                            />
-                        </label>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={geocode}
-                            disabled={geocoding}
-                            className="px-4 py-2 text-xs uppercase tracking-wide border border-border hover:bg-accent/10 hover:border-accent transition-colors disabled:opacity-50"
-                        >
-                            {geocoding ? "Recherche..." : "Géolocaliser depuis l'adresse"}
-                        </button>
-                        {lat && lng && !geocoding && (
-                            <span className="text-xs text-muted-foreground">
-                                {lat}, {lng}
-                            </span>
-                        )}
-                    </div>
-                    {geocodeError && (
-                        <p className="text-xs text-destructive">{geocodeError}</p>
-                    )}
                 </div>
             </Section>
 

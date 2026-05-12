@@ -11,10 +11,7 @@ type Props = {
     role: "owner" | "admin" | "staff";
 };
 
-type NavItem = {
-    href: string;
-    label: string;
-};
+type NavItem = { href: string; label: string; exact?: boolean };
 
 type NavSection = {
     title: string;
@@ -35,7 +32,7 @@ export function DashboardSidebar({
         {
             title: "Présence",
             items: [
-                { href: base, label: "Vue d'ensemble" },
+                { href: base, label: "Vue d'ensemble", exact: true },
                 { href: `${base}/fiche`, label: "Fiche publique" },
                 { href: `${base}/photos`, label: "Photos" },
             ],
@@ -75,52 +72,44 @@ export function DashboardSidebar({
         },
     ];
 
+    const isActive = (href: string, exact?: boolean) =>
+        exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
+
+    const roleLabel: Record<typeof role, string> = {
+        owner: "Propriétaire",
+        admin: "Admin",
+        staff: "Staff",
+    };
+
     return (
-        <div className="space-y-8">
+        <div className="lg:sticky lg:top-24 space-y-10">
+            {/* Identité organisation */}
             <div>
-                <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
+                <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
                     {orgType === "etang" ? "Étang" : "Magasin"}
                 </p>
-                <h2 className="mt-2 font-display text-2xl tracking-tight leading-tight">
+                <p className="mt-3 font-display text-xl tracking-tight leading-tight truncate">
                     {orgName}
-                </h2>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                     <StatusBadge status={orgStatus} />
-                    <span className="text-muted-foreground uppercase tracking-wide">
-                        · {role}
+                    <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                        {roleLabel[role]}
                     </span>
                 </div>
             </div>
 
-            <nav className="space-y-6">
-                {sections.map((section) => (
-                    <div key={section.title}>
-                        <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground/70 px-3 mb-2">
-                            {section.title}
-                        </p>
-                        <ul className="space-y-0.5">
-                            {section.items.map((item) => {
-                                const isActive = pathname === item.href;
-                                return (
-                                    <li key={item.href}>
-                                        <Link
-                                            href={item.href}
-                                            className={`block px-3 py-2 text-sm transition-colors ${
-                                                isActive
-                                                    ? "bg-accent/10 text-accent font-medium"
-                                                    : "text-foreground/80 hover:text-accent hover:bg-accent/5"
-                                            }`}
-                                        >
-                                            {item.label}
-                                        </Link>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    </div>
-                ))}
-            </nav>
+            {/* Sections de navigation */}
+            {sections.map((section) => (
+                <SidebarGroup
+                    key={section.title}
+                    title={section.title}
+                    items={section.items}
+                    isActive={isActive}
+                />
+            ))}
 
+            {/* Footer */}
             <div className="pt-6 border-t border-border">
                 <Link
                     href="/profil"
@@ -129,6 +118,42 @@ export function DashboardSidebar({
                     ← Retour au profil
                 </Link>
             </div>
+        </div>
+    );
+}
+
+function SidebarGroup({
+                          title,
+                          items,
+                          isActive,
+                      }: {
+    title: string;
+    items: NavItem[];
+    isActive: (href: string, exact?: boolean) => boolean;
+}) {
+    return (
+        <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground mb-4">
+                {title}
+            </p>
+            <nav className="flex flex-col -ml-px">
+                {items.map((item) => {
+                    const active = isActive(item.href, item.exact);
+                    return (
+                        <Link
+                            key={item.href}
+                            href={item.href}
+                            className={`text-sm py-2 pl-4 border-l transition-colors ${
+                                active
+                                    ? "text-foreground border-accent font-medium"
+                                    : "text-muted-foreground border-border hover:text-foreground hover:border-foreground"
+                            }`}
+                        >
+                            {item.label}
+                        </Link>
+                    );
+                })}
+            </nav>
         </div>
     );
 }

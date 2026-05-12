@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/lib/database.types";
+import {cache} from "react";
 
 /**
  * Client Supabase pour le serveur Next.js (RSC, Server Actions, route handlers).
@@ -32,3 +33,23 @@ export async function createClient() {
         }
     );
 }
+
+/**
+ * Helper : récupère l'utilisateur authentifié côté serveur.
+ *
+ * Objectif métier : afficher conditionnellement la navbar
+ *                   (avatar/Mon compte vs Se connecter).
+ * Garde-fou sécu : `getUser()` (pas `getSession()`) valide le JWT
+ *                  auprès de Supabase Auth → on ne fait jamais confiance
+ *                  à un cookie non vérifié pour afficher des données sensibles.
+ *
+ * Cache: 1 seul roundtrip Supabase par requête HTTP, même si la nav,
+ * le footer et un Server Component middle appellent tous getServerUser().
+ */
+export const getServerUser = cache(async () => {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    return user;
+});
